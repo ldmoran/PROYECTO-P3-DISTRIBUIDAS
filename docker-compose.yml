@@ -1,0 +1,60 @@
+# =============================================================================
+#  docker-compose.yml  —  Base del MVP (Tarea 1)
+#  Gateway + 3 microservicios + Redis (eventos) + Postgres.
+#  Ajusten los "build" a las rutas reales de su monorepo.
+#
+#  Levantar:   docker compose up -d --build
+#  Ver:        docker compose ps
+# =============================================================================
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: app }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Broker de EVENTOS (camino asíncrono de la Tarea 1). Redis = ejemplo por defecto.
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    restart: unless-stopped
+
+  # --- Microservicio A (inicia la cadena síncrona por TCP) ---
+  svc-pedidos:
+    build: ./apps/pedidos            # <-- ajusten la ruta
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      SVC_PRODUCTOS_HOST: svc-productos   # destino del salto síncrono (TCP)
+      SVC_PRODUCTOS_PORT: 3001
+    depends_on: [db, redis]
+    restart: unless-stopped
+
+  # --- Microservicio B (segundo salto de la cadena síncrona) ---
+  svc-productos:
+    build: ./apps/productos
+    environment: { DB_HOST: db, REDIS_HOST: redis }
+    depends_on: [db]
+    restart: unless-stopped
+
+  # --- Microservicio C (consumidor de EVENTOS por Redis, camino asíncrono) ---
+  svc-notificaciones:
+    build: ./apps/notificaciones
+    environment: { REDIS_HOST: redis }
+    depends_on: [redis]
+    restart: unless-stopped
+
+  # --- API Gateway (punto único de entrada, expone HTTP) ---
+  gateway:
+    build: ./apps/gateway
+    environment:
+      SVC_PEDIDOS_HOST: svc-pedidos
+      SVC_PEDIDOS_PORT: 3000
+    ports: ["3000:3000"]             # el sistema se prueba en http://localhost:3000
+    depends_on: [svc-pedidos]
+    restart: unless-stopped
