@@ -1,72 +1,120 @@
-<!--
-============================================================
- PLANTILLA README — Proyecto de Microservicios (3 avances)
- Cópienla como README.md en la raíz del repo.
- Completen las secciones ✍️ en cada avance. Reemplacen todo entre << >>.
-============================================================
--->
-
-# <<Nombre del Sistema>>
-
-> MVP de arquitectura de microservicios · <<Materia>> · 7.° semestre · Entrega por avances.
+# Sistema de Gestión de Biblioteca Universitaria
+> MVP de arquitectura de microservicios · Distribuidas · 7.° semestre · Entrega por avances.
 
 ## 👥 Equipo
 | Integrante | Rol | GitHub |
 |---|---|---|
-| <<Nombre 1>> | <<Backend / Arquitectura>> | @usuario |
-| <<Nombre 2>> | <<Transportes / gRPC>> | @usuario |
-| <<Nombre 3>> | <<Seguridad / Observabilidad>> | @usuario |
-| <<Nombre 4 (opcional)>> | <<Documentación / QA>> | @usuario |
+| David Moran | Backend / Arquitectura | @usuario |
+| Gabriel Vivanco | Transportes / gRPC | @usuario |
+| Alison Miranda | Seguridad / Observabilidad | @usuario |
+| Samir Mideros | Documentación / QA | @usuario |
 
 ## 🧩 Descripción del MVP
-✍️ <<1–2 párrafos: qué hace el sistema y por qué el dominio es sencillo.>>
-- **MS 1 — <<Pedidos>>:** <<responsabilidad>>
-- **MS 2 — <<Productos>>:** <<responsabilidad>>
-- **MS 3 — <<Notificaciones>>:** <<responsabilidad>>
-- **API Gateway:** punto único de entrada.
+El sistema permite administrar el catálogo de libros de una biblioteca universitaria y los préstamos que los usuarios realizan sobre ese catálogo, generando notificaciones cuando un préstamo se registra. El dominio se mantiene deliberadamente sencillo (3 entidades: Libro, Préstamo, Notificación) para que el esfuerzo del proyecto se concentre en la **arquitectura de comunicación entre microservicios** (síncrona vs. asíncrona) y no en lógica de negocio compleja.
+
+- **MS 1 — Libros:** administra el catálogo (crear, consultar, actualizar, eliminar, verificar disponibilidad).
+- **MS 2 — Préstamos:** registra préstamos; antes de confirmar uno, consulta de forma **síncrona (TCP)** al MS Libros para verificar disponibilidad; al terminar, publica un **evento asíncrono en Redis**.
+- **MS 3 — Notificaciones:** escucha el evento de Redis y simula el envío de una notificación, sin bloquear al MS Préstamos.
+- **API Gateway:** punto único de entrada HTTP para el cliente; redirige al microservicio correspondiente.
 
 ## 🛠️ Stack
-- **Framework:** <<NestJS / Spring Boot>>
-- **Síncrono:** TCP · **Eventos:** <<Redis>> · **2.º transporte:** <<RabbitMQ/MQTT/NATS>> · **Contrato:** gRPC
-- **Seguridad:** JWT + Guard · **Observabilidad:** Sentry
-- **BD:** PostgreSQL · **Contenedores:** Docker Compose · **Estructura:** monorepo
+- **Framework:** NestJS (TypeScript)
+- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub)
+- **BD:** PostgreSQL · **Persistencia:** TypeORM
+- **Contenedores:** Docker Compose · **Estructura:** monorepo (`apps/`)
+- **Control de versiones:** Git + GitHub (GitHub Flow)
+
+> Este avance **no incluye** gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry — esos temas corresponden a los Avances 2 y 3.
 
 ## ▶️ Cómo ejecutar
 ```bash
 docker compose up -d --build
 docker compose ps
-curl http://localhost:3000/api/<<recurso>>
+curl http://localhost:3000/api/libros
 ```
+*(Este bloque se completará y verificará en los pasos de Docker Compose y CRUD.)*
 
 ## 🏗️ Arquitectura
-✍️ <<Diagrama en /docs o Mermaid. Actualícenlo en cada avance.>>
+```
+Cliente
+  │  HTTP
+  ▼
+API Gateway
+  │  TCP (síncrono)
+  ▼
+Préstamos ───────────────► Libros
+  │
+  │  Redis PUBLISH (asíncrono, no bloqueante)
+  ▼
+Notificaciones
+```
+*(Diagrama de imagen para `/docs` se agregará más adelante.)*
 
 ## 🧭 Metodología
-- **Kanban:** <<enlace GitHub Projects>> (captura en /docs).
-- **Ramificación:** <<GitHub Flow>> — `main` protegida, ramas `feat/…`, PRs revisados, tags por avance.
-- **Commits semánticos:** Conventional Commits.
+- **Kanban:** *(pendiente — se enlaza en un paso posterior)*.
+- **Ramificación:** GitHub Flow — `main` protegida, ramas `feat/…`, `fix/…`, `docs/…`, PRs revisados, tag `v1-avance1` al cierre del avance.
+- **Commits semánticos:** Conventional Commits (`feat`, `fix`, `docs`, `refactor`, `chore`, `ci`).
 
 ## 🗺️ Patrones y principios aplicados
-✍️ <<Nómbrenlos: API Gateway, Proxy, Publisher/Subscriber, DIP, DTO+Pipes (SRP), Exception Filters. Cuáles trae Nest y cuáles agregaron ustedes.>>
+*(Se documentan a medida que se implementan: API Gateway, Publisher/Subscriber, DTO+Pipes (SRP), Exception Filters, Inyección de Dependencias (DIP), etc.)*
 
 ---
 
 ## 🟢 Avance 1 — Acoplamiento temporal y latencia · `tag v1-avance1`
-### Caminos
-- **Síncrono (TCP):** Gateway → <<A>> → <<B>>.
-- **Asíncrono (Redis):** Gateway publica evento; el consumidor procesa sin bloquear.
+
+### Paso 1 — Estructura de carpetas del monorepo
+
+**Qué hicimos:** creamos el esqueleto de carpetas del repositorio, sin generar aún ningún proyecto NestJS dentro:
+
+```
+PROYECTO-P3-DISTRIBUIDAS/
+├── apps/
+│   ├── gateway/
+│   ├── libros/
+│   ├── prestamos/
+│   └── notificaciones/
+├── docs/
+│   └── evidencias/
+├── docker-compose.yml
+├── benchmark.js
+├── README.md
+├── README.plantilla.md
+├── GUIA_GENERAL.md
+├── TABLERO_KANBAN.md
+├── TAREA_1.md
+└── .gitignore
+```
+
+**Por qué lo hacemos así:**
+- **Monorepo (`apps/`):** los 4 servicios (Gateway + 3 microservicios) viven en un solo repositorio pero cada uno es un proyecto NestJS **independiente** (su propio `package.json`, `Dockerfile`, `tsconfig.json`). Esto es justo lo que pide la guía del profesor y facilita que Docker Compose construya cada servicio por separado sin perder la trazabilidad de commits en un único historial de Git.
+- **Carpetas vacías todavía:** en este paso solo preparamos el contenedor de carpetas. Cada carpeta dentro de `apps/` se llenará en el **Paso 2**, cuando ejecutemos `nest new` dentro de cada una — así evitamos mezclar la generación de código con la organización del repo, y si algo sale mal en un `nest new` es fácil de aislar.
+- **`docs/evidencias/`:** aquí van las capturas de latencia y de la prueba de caída del microservicio, que la rúbrica exige como evidencia obligatoria (criterio C2 y C5 de `TAREA_1.md`).
+- **Archivos raíz vacíos (`docker-compose.yml`, `benchmark.js`, etc.):** los dejamos creados como *placeholders* para que la estructura del repo coincida con la que espera el profesor desde el día 1, aunque su contenido real se agrega en pasos posteriores (Docker Compose en el Paso 4, benchmark en el Paso 16).
+
+**Comandos exactos ejecutados** (puedes correrlos tal cual en tu terminal, dentro de la carpeta donde quieras crear el proyecto):
+```bash
+mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/gateway
+mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/libros
+mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/prestamos
+mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/notificaciones
+mkdir -p PROYECTO-P3-DISTRIBUIDAS/docs/evidencias
+
+cd PROYECTO-P3-DISTRIBUIDAS
+touch docker-compose.yml benchmark.js GUIA_GENERAL.md TABLERO_KANBAN.md TAREA_1.md README.plantilla.md .gitignore
+
+git init
+git add .
+git commit -m "chore: estructura inicial del monorepo (apps/, docs/)"
+```
 
 ### 📈 Latencia (con `benchmark.js`)
-| Camino | Promedio (ms) | p95 (ms) | Máx (ms) |
-|---|---|---|---|
-| Síncrono | << >> | << >> | << >> |
-| Asíncrono | << >> | << >> | << >> |
+*(pendiente — Paso 16)*
 
 ### 🧨 Acoplamiento temporal
-✍️ <<Al apagar <<B>>, la petición síncrona falla; el flujo asíncrono acepta la petición sin bloquearse (capturas).>>
+*(pendiente — Paso 17)*
 
 ### 🧠 Análisis
-✍️ <<Por qué se suman las latencias y qué es el acoplamiento temporal según lo observado.>>
+*(pendiente)*
 
 ---
 
