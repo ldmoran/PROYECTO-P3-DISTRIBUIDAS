@@ -1,60 +1,122 @@
-# =============================================================================
-#  docker-compose.yml  —  Base del MVP (Tarea 1)
-#  Gateway + 3 microservicios + Redis (eventos) + Postgres.
-#  Ajusten los "build" a las rutas reales de su monorepo.
-#
-#  Levantar:   docker compose up -d --build
-#  Ver:        docker compose ps
-# =============================================================================
 services:
-
-  db:
+  postgres:
     image: postgres:16-alpine
-    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: app }
+    container_name: biblioteca-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: biblioteca
+      POSTGRES_PASSWORD: biblioteca
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    networks:
+      - biblioteca-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U biblioteca"]
+      interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
 
-  # Broker de EVENTOS (camino asíncrono de la Tarea 1). Redis = ejemplo por defecto.
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    container_name: biblioteca-redis
     restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - biblioteca-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # --- Microservicio A (inicia la cadena síncrona por TCP) ---
-  svc-pedidos:
-    build: ./apps/pedidos            # <-- ajusten la ruta
+  libros:
+    build: ./apps/libros
+    container_name: biblioteca-libros
+    restart: unless-stopped
     environment:
-      DB_HOST: db
+      TCP_PORT: 4001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_libros
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - biblioteca-net
+
+  prestamos:
+    build: ./apps/prestamos
+    container_name: biblioteca-prestamos
+    restart: unless-stopped
+    environment:
+      TCP_PORT: 4002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_prestamos
+      LIBROS_TCP_HOST: libros
+      LIBROS_TCP_PORT: 4001
       REDIS_HOST: redis
-      SVC_PRODUCTOS_HOST: svc-productos   # destino del salto síncrono (TCP)
-      SVC_PRODUCTOS_PORT: 3001
-    depends_on: [db, redis]
-    restart: unless-stopped
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      libros:
+        condition: service_started
+    networks:
+      - biblioteca-net
 
-  # --- Microservicio B (segundo salto de la cadena síncrona) ---
-  svc-productos:
-    build: ./apps/productos
-    environment: { DB_HOST: db, REDIS_HOST: redis }
-    depends_on: [db]
-    restart: unless-stopped
-
-  # --- Microservicio C (consumidor de EVENTOS por Redis, camino asíncrono) ---
-  svc-notificaciones:
+  notificaciones:
     build: ./apps/notificaciones
-    environment: { REDIS_HOST: redis }
-    depends_on: [redis]
+    container_name: biblioteca-notificaciones
     restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_notificaciones
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - biblioteca-net
 
-  # --- API Gateway (punto único de entrada, expone HTTP) ---
   gateway:
     build: ./apps/gateway
-    environment:
-      SVC_PEDIDOS_HOST: svc-pedidos
-      SVC_PEDIDOS_PORT: 3000
-    ports: ["3000:3000"]             # el sistema se prueba en http://localhost:3000
-    depends_on: [svc-pedidos]
+    container_name: biblioteca-gateway
     restart: unless-stopped
+    environment:
+      PORT: 3000
+      LIBROS_TCP_HOST: libros
+      LIBROS_TCP_PORT: 4001
+      PRESTAMOS_TCP_HOST: prestamos
+      PRESTAMOS_TCP_PORT: 4002
+    ports:
+      - "3000:3000"
+    depends_on:
+      - libros
+      - prestamos
+    networks:
+      - biblioteca-net
+
+volumes:
+  pg_data:
+
+networks:
+  biblioteca-net:
+    driver: bridge

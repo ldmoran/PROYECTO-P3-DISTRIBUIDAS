@@ -108,14 +108,270 @@ git commit -m "chore: estructura inicial del monorepo (apps/, docs/)"
 ```
 
 ### 📈 Latencia (con `benchmark.js`)
-*(pendiente — Paso 16)*
+
+Se realizaron 50 peticiones para comparar el comportamiento del camino síncrono
+(Gateway → Préstamos → Libros mediante TCP) frente al camino asíncrono
+(Préstamos → Redis → Notificaciones).
+
+| Comunicación | Promedio (ms) | P95 (ms) | Máximo (ms) |
+|---|---:|---:|---:|
+| Síncrona TCP | 9.10 | 32.56 | 48.77 |
+| Asíncrona Redis Pub/Sub | 1.84 | 2.41 | 5.06 |
+
+Resultados:
+- La comunicación asíncrona presentó menor latencia debido a que el servicio de préstamos no espera la respuesta del consumidor del evento.
+- La comunicación síncrona tiene mayor tiempo de respuesta porque requiere esperar la consulta TCP al microservicio Libros.
+
+
+![alt text](docs/evidencias/benchmark-latencia.png)
+
+
+## 🧪 Pruebas funcionales con Postman
+
+Para verificar la comunicación entre los microservicios se realizaron pruebas mediante Postman, validando tanto la comunicación síncrona mediante TCP como la comunicación asíncrona mediante Redis Pub/Sub.
+
+---
+
+## 1. Verificación del catálogo de libros
+
+Primero se obtiene un libro existente desde el API Gateway para utilizar su identificador en la prueba de préstamo.
+
+### Método:
+```
+
+GET
+
+```
+
+### Endpoint:
+```
+
+[http://localhost:3000/api/libros](http://localhost:3000/api/libros)
+
+```
+
+### Resultado esperado:
+
+La respuesta devuelve la lista de libros disponibles con su respectivo identificador (`id`).
+
+Ejemplo:
+
+```json
+[
+    {
+        "id": "c7c1f5af-882d-4d22-9623-5f5313acd666",
+        "titulo": "Clean Code",
+        "autor": "Robert C. Martin",
+        "isbn": "9780132350884",
+        "disponible": true
+    }
+]
+```
+
+Se copia el valor del campo `id`, ya que será utilizado en la siguiente prueba.
+
+### Evidencia:
+
+![alt text](docs/evidencias/prueba-redis/listaLibros.png)
+
+---
+
+# 2. Prueba de comunicación síncrona TCP
+
+Se realiza una solicitud para registrar un préstamo. El flujo interno utilizado es:
+
+```
+Cliente (Postman)
+        |
+        | HTTP
+        ▼
+API Gateway
+        |
+        | TCP Request/Response
+        ▼
+Microservicio Préstamos
+        |
+        | TCP Request/Response
+        ▼
+Microservicio Libros
+```
+
+El microservicio Préstamos consulta al microservicio Libros mediante TCP para verificar que el libro exista y esté disponible antes de continuar.
+
+### Método:
+
+```
+POST
+```
+
+### Endpoint:
+
+```
+http://localhost:3000/api/prestamos/test-sync
+```
+
+### Headers:
+
+| Key          | Value            |
+| ------------ | ---------------- |
+| Content-Type | application/json |
+
+### Body:
+
+Seleccionar:
+
+```
+Body → raw → JSON
+```
+
+Enviar:
+
+```json
+{
+    "libroId": "ID_DEL_LIBRO"
+}
+```
+
+Ejemplo:
+
+```json
+{
+    "libroId": "c7c1f5af-882d-4d22-9623-5f5313acd666"
+}
+```
+
+### Resultado esperado:
+
+```json
+{
+    "libroId": "c7c1f5af-882d-4d22-9623-5f5313acd666",
+    "usuario": "jperez",
+    "estado": "ACTIVO",
+    "id": "fe695866-2cbe-4234-b89f-26bfea436045",
+    "fechaPrestamo": "2026-07-12T19:55:14.879Z"
+}
+```
+
+### Evidencia:
+
+![alt text](docs/evidencias/prueba-redis/comunicaciónSíncronaTCP.png)
+
+---
+
+# 3. Prueba de comunicación asíncrona Redis Pub/Sub
+
+Se realiza una prueba donde el microservicio Préstamos genera un evento utilizando Redis Pub/Sub.
+
+El flujo interno utilizado es:
+
+```
+Microservicio Préstamos
+        |
+        | Evento: prestamo.registrado
+        ▼
+Redis Pub/Sub
+        |
+        ▼
+Microservicio Notificaciones
+```
+
+El servicio de Préstamos publica el evento sin esperar una respuesta del microservicio Notificaciones, permitiendo reducir el acoplamiento temporal.
+
+### Método:
+
+```
+POST
+```
+
+### Endpoint:
+
+```
+http://localhost:3000/api/prestamos/test-async
+```
+
+### Body:
+
+Seleccionar:
+
+```
+Body → raw → JSON
+```
+
+Enviar:
+
+```json
+{}
+```
+
+### Resultado esperado:
+
+La solicitud se procesa correctamente y el evento es publicado en Redis.
+
+
+![alt text](<docs/evidencias/prueba-redis/asíncrona Redis Pub-Sub.png>)
+
+
+### Validación en logs:
+
+Comando utilizado:
+
+```bash
+docker compose logs prestamos --tail=30
+```
+
+Resultado esperado:
+
+```
+Evento 'prestamo.registrado' publicado
+```
+
+![alt text](<docs/evidencias/prueba-redis/compose logs prestamos --tail=30.png>)
+
+Luego se verifica el consumidor:
+
+```bash
+docker compose logs notificaciones --tail=30
+```
+
+Resultado esperado:
+
+```
+Evento recibido y procesado por Notificaciones
+```
+
+![alt text](<docs/evidencias/prueba-redis/compose logs notificaciones --tail=30.png>)
+
 
 ### 🧨 Acoplamiento temporal
-*(pendiente — Paso 17)*
+
+El sistema presenta dos tipos de comunicación:
+
+- Comunicación síncrona TCP:
+  El microservicio Préstamos depende temporalmente del microservicio Libros, ya que debe esperar su respuesta antes de confirmar la operación.
+
+- Comunicación asíncrona Redis Pub/Sub:
+  El microservicio Préstamos publica el evento `prestamo.registrado` y continúa su ejecución sin esperar al microservicio Notificaciones.
+
+Esto reduce el acoplamiento temporal y mejora la disponibilidad del sistema.
+
+### Ejecución del benchmark
+
+```bash
+node benchmark.js <libroId>
+```
+
+![alt text](docs/evidencias/benchmark-latencia.png)
+
 
 ### 🧠 Análisis
-*(pendiente)*
 
+Los resultados muestran que la comunicación asíncrona mediante Redis Pub/Sub presenta una menor latencia debido a que el microservicio Préstamos no necesita esperar una respuesta del servicio Notificaciones para finalizar la operación.
+
+En cambio, la comunicación síncrona mediante TCP presenta una mayor latencia porque existe una dependencia temporal entre Préstamos y Libros. El servicio debe enviar una solicitud y esperar la respuesta antes de continuar.
+
+La arquitectura implementada permite utilizar cada tipo de comunicación según la necesidad del sistema:
+- TCP para operaciones donde se requiere una respuesta inmediata y validación antes de continuar.
+- Redis Pub/Sub para eventos donde no es necesario bloquear el flujo principal.
 ---
 
 ## 🟡 Avance 2 — Comunicación: gRPC + 2.º transporte + excepciones · `tag v2-avance2`
