@@ -13,17 +13,20 @@
 ## Tarjetas iniciales
 
 ### 🟢 Avance 1 — `avance-1`
-- [ ] Definir dominio del MVP (3 microservicios + Gateway)
+- [x] Definir dominio del MVP (3 microservicios + Gateway) → Sistema de Gestión de Biblioteca Universitaria
 - [ ] Crear repo, proteger `main`, ramas base
-- [ ] Docker Compose base (Gateway + 3 MS + Redis + Postgres)
-- [ ] MS 1, MS 2, MS 3 (CRUD mínimo + persistencia TypeORM)
-- [ ] API Gateway (entrada HTTP)
-- [ ] Camino síncrono con TCP (cadena Gateway→A→B)
-- [ ] Camino asíncrono con Redis (evento, emisor no bloquea)
-- [ ] Manejo de excepciones en la capa de servicios
-- [ ] Benchmark de latencia (prom/p95/máx) — solo JS o Postman
-- [ ] Prueba de acoplamiento temporal (tumbar servicio)
-- [ ] Diagrama de arquitectura v1 + README Avance 1
+- [x] Docker Compose base (Gateway + 3 MS + Redis + Postgres)
+- [x] MS 1, MS 2, MS 3 (CRUD mínimo + persistencia TypeORM) → Libros, Préstamos, Notificaciones
+- [x] API Gateway (entrada HTTP)
+- [x] Camino síncrono con TCP (cadena Gateway→Préstamos→Libros)
+- [x] Camino asíncrono con Redis (evento `prestamo.registrado`, emisor no bloquea)
+- [x] Manejo de excepciones en la capa de servicios (filtros RPC/HTTP)
+- [x] Benchmark de latencia (prom/p95/máx) — `benchmark.js` corrido con éxito
+- [x] Prueba de acoplamiento temporal (tumbar `libros`)
+- [x] Diagrama de arquitectura v1 + README Avance 1
+
+![Arquitectura v1](docs/evidencias/Diagrama/arquitectura-v1.png)
+
 - [ ] Tag `v1-avance1`
 
 ### 🟡 Avance 2 — `avance-2`
@@ -51,6 +54,13 @@
 ## Tablero Markdown (alternativa dentro del repo)
 | Backlog | Por hacer | En progreso | En revisión | Hecho |
 |---|---|---|---|---|
-| Integrar Sentry | Contrato gRPC | MS 1 | — | Crear repo |
-| JWT + Guard | Segundo transporte | Gateway | — | Compose base |
-| ... | ... | ... | ... | ... |
+| Integrar Sentry | Crear repo + proteger `main` | — | — | Dominio del MVP |
+| JWT + Guard | Tag `v1-avance1` | — | — | Docker Compose base |
+| Contrato gRPC | — | — | — | MS Libros / Préstamos / Notificaciones |
+| Segundo transporte | — | — | — | API Gateway |
+| ... | ... | ... | ... | Camino síncrono TCP |
+| ... | ... | ... | ... | Camino asíncrono Redis |
+| ... | ... | ... | ... | Manejo de excepciones |
+| ... | ... | ... | ... | Benchmark de latencia |
+| ... | ... | ... | ... | Prueba de acoplamiento temporal |
+| ... | ... | ... | ... | Diagrama de arquitectura v1 |
