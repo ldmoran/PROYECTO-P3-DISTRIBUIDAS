@@ -1,0 +1,163 @@
+# =============================================================================
+#  docker-compose.transportes.yml  -  Tarea 2  -  solo temas vistos
+#
+#  Amplia la base de la Tarea 1 agregando:
+#   - Un SEGUNDO transporte de mensajeria (aqui RabbitMQ; pueden usar MQTT/NATS).
+#   - gRPC: NO necesita broker, es comunicacion DIRECTA servicio-a-servicio
+#     (se define con un contrato .proto en el monorepo).
+#
+#  Levantar:   docker compose -f docker-compose.transportes.yml up -d --build
+#  Ver:        docker compose -f docker-compose.transportes.yml ps
+# =============================================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: biblioteca-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: biblioteca
+      POSTGRES_PASSWORD: biblioteca
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    networks:
+      - biblioteca-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biblioteca"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: biblioteca-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - biblioteca-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: biblioteca-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - biblioteca-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  libros:
+    build:
+      context: .
+      dockerfile: apps/libros/Dockerfile
+    container_name: biblioteca-libros
+    restart: unless-stopped
+    environment:
+      TCP_PORT: 4001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_libros
+      GRPC_PORT: 5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - biblioteca-net
+
+  prestamos:
+    build:
+      context: .
+      dockerfile: apps/prestamos/Dockerfile
+    container_name: biblioteca-prestamos
+    restart: unless-stopped
+    environment:
+      TCP_PORT: 4002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_prestamos
+      LIBROS_TCP_HOST: libros
+      LIBROS_TCP_PORT: 4001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      libros:
+        condition: service_started
+    networks:
+      - biblioteca-net
+
+  notificaciones:
+    build:
+      context: .
+      dockerfile: apps/notificaciones/Dockerfile
+    container_name: biblioteca-notificaciones
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: biblioteca
+      DB_PASS: biblioteca
+      DB_NAME: biblioteca_notificaciones
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - biblioteca-net
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    container_name: biblioteca-gateway
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      LIBROS_TCP_HOST: libros
+      LIBROS_TCP_PORT: 4001
+      PRESTAMOS_TCP_HOST: prestamos
+      PRESTAMOS_TCP_PORT: 4002
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      LIBROS_GRPC_URL: libros:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - libros
+      - prestamos
+      - rabbitmq
+    networks:
+      - biblioteca-net
+
+volumes:
+  pg_data:
+
+networks:
+  biblioteca-net:
+    driver: bridge
