@@ -19,12 +19,12 @@ El sistema permite administrar el catálogo de libros de una biblioteca universi
 
 ## 🛠️ Stack
 - **Framework:** NestJS (TypeScript)
-- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub)
+- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub) · **RPC:** gRPC · **Mensajería:** RabbitMQ
 - **BD:** PostgreSQL · **Persistencia:** TypeORM
 - **Contenedores:** Docker Compose · **Estructura:** monorepo (`apps/`)
 - **Control de versiones:** Git + GitHub (GitHub Flow)
 
-> Este avance **no incluye** gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry — esos temas corresponden a los Avances 2 y 3.
+> En el **Avance 1** no incluimos gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry. Esos temas se agregan en los avances siguientes.
 
 ## ▶️ Cómo ejecutar
 ```bash
@@ -413,6 +413,100 @@ La arquitectura implementada permite utilizar cada tipo de comunicación según 
 
 ## 🎤 Defensa
 ✍️ <<Enlace a diapositivas + guion. Runbook de la demo (levantar → login → ruta protegida → operación integrada → error en Sentry). Preguntas frecuentes preparadas.>>
+
+## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
+
+### 1) Arquitectura actualizada
+
+```mermaid
+flowchart LR
+  C[Cliente / Postman / grpcurl] --> G[Gateway HTTP]
+  G -->|TCP| P[Préstamos]
+  P -->|TCP| L[Libros]
+  G -->|gRPC| L
+  P -->|Redis PUB/SUB| N[Notificaciones]
+  P -->|RabbitMQ queue| G
+```
+
+### 2) Contrato gRPC
+
+Archivo compartido del monorepo: `proto/libros.proto`
+
+```proto
+syntax = "proto3";
+
+package biblioteca;
+
+service LibrosService {
+  rpc ObtenerLibro (LibroRequest) returns (LibroResponse);
+}
+
+message LibroRequest {
+  string id = 1;
+}
+
+message LibroResponse {
+  string id = 1;
+  string titulo = 2;
+  string autor = 3;
+  string isbn = 4;
+  bool disponible = 5;
+}
+```
+
+**Flujo gRPC:** el Gateway consume `LibrosService/ObtenerLibro` desde el microservicio Libros. En Libros, el método de servicio encapsula el acceso a la base de datos con `try/catch` y reenvía los errores controlados como `RpcException`. En el Gateway, la llamada también usa `try/catch` para traducir fallos de red o errores de negocio a respuestas HTTP consistentes.
+
+Ejemplo de prueba con `grpcurl`:
+
+```bash
+grpcurl -plaintext -proto proto/libros.proto -d '{"id":"ID_EXISTENTE"}' localhost:4001 biblioteca.LibrosService/ObtenerLibro
+```
+
+### 3) Segundo transporte: RabbitMQ
+
+Se agregó un flujo asíncrono adicional para auditoría:
+
+```text
+Préstamos -> RabbitMQ queue: prestamo.auditoria -> Gateway
+```
+
+El microservicio Préstamos publica el evento `prestamo.auditoria` después de registrar un préstamo real. El Gateway lo consume y registra la auditoría sin bloquear el flujo principal. Si la publicación a RabbitMQ falla, Préstamos captura el error, lo registra y continúa con la operación principal para no tumbar el servicio.
+
+### 4) Manejo de excepciones
+
+- En `LibrosService.obtenerLibroGrpc(...)` se controla el caso de libro inexistente y se traduce a `RpcException`.
+- En `GatewayService.obtenerLibroGrpc(...)` se convierte el error gRPC a `HttpException` para devolver un estado HTTP claro.
+- En `PrestamosService.create(...)` la publicación a RabbitMQ está envuelta en `try/catch`; si el broker falla, la reserva del préstamo sigue y el servicio no cae.
+
+### 5) Comparación de transportes
+
+| Transporte | Tipo | Patrón | Uso en el proyecto |
+|---|---|---|---|
+| TCP | Síncrono | Petición-respuesta | Gateway -> Préstamos y Préstamos -> Libros para validar y ejecutar operaciones del Avance 1 |
+| Redis | Asíncrono | PUB/SUB | Préstamos -> Notificaciones para `prestamo.registrado` |
+| RabbitMQ | Asíncrono | Queue / mensajería | Préstamos -> Gateway para la auditoría `prestamo.auditoria` |
+| gRPC | Síncrono | Contrato/RPC | Gateway -> Libros para consultar un libro con contrato `.proto` |
+
+TCP conviene cuando necesito respuesta inmediata y control del flujo, como verificar disponibilidad antes de registrar un préstamo. Redis funciona bien para eventos livianos y desacoplados. RabbitMQ es más apropiado cuando quiero una cola más explícita para auditoría o trabajos asíncronos que deben quedar en espera. gRPC encaja cuando necesito un contrato fuerte, tipado y rápido entre servicios, sin perder la semántica de RPC.
+
+### 6) Evidencias del Avance 2
+
+Las capturas deben quedar dentro de `docs/evidencias/` y quedar referenciadas aquí en el README:
+
+- gRPC exitoso entre Gateway y Libros.
+- gRPC con error controlado para un libro inexistente.
+- Evento `prestamo.auditoria` publicado en RabbitMQ y consumido por el Gateway.
+- Logs o captura del `try/catch` mostrando que el servicio no cae.
+
+Comandos útiles para la demo:
+
+```bash
+docker compose up -d --build
+docker compose logs gateway --tail=50
+docker compose logs prestamos --tail=50
+curl http://localhost:3000/api/libros/grpc/ID_EXISTENTE
+curl http://localhost:3000/api/libros/grpc/ID_INEXISTENTE
+```
 
 ## 🏷️ Tags de entrega
 - `v1-avance1` — <<fecha>> · `v2-avance2` — <<fecha>> · `v3-final` — <<fecha>>

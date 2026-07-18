@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package biblioteca;
+
+service LibrosService {
+  rpc ObtenerLibro (LibroRequest) returns (LibroResponse);
+}
+
+message LibroRequest {
+  string id = 1;
+}
+
+message LibroResponse {
+  string id = 1;
+  string titulo = 2;
+  string autor = 3;
+  string isbn = 4;
+  bool disponible = 5;
+}

@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { GrpcMethod, MessagePattern, Payload } from '@nestjs/microservices';
 import { LibrosService } from './libros.service';
 import { CreateLibroDto } from './dto/create-libro.dto';
 import { UpdateLibroDto } from './dto/update-libro.dto';
@@ -21,6 +21,11 @@ export class LibrosController {
   @MessagePattern('libros.findOne')
   findOne(@Payload() id: string) {
     return this.librosService.findOne(id);
+  }
+
+  @GrpcMethod('LibrosService', 'ObtenerLibro')
+  obtenerLibroGrpc(@Payload() data: { id: string }) {
+    return this.librosService.obtenerLibroGrpc(data.id);
   }
 
   @MessagePattern('libros.update')

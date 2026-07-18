@@ -15,6 +15,7 @@ export class PrestamosService {
     private readonly prestamoRepository: Repository<Prestamo>,
     @Inject('LIBROS_SERVICE') private readonly librosClient: ClientProxy,
     @Inject('REDIS_SERVICE') private readonly redisClient: ClientProxy,
+    @Inject('RABBITMQ_SERVICE') private readonly rabbitmqClient: ClientProxy,
   ) {}
 
   /**
@@ -24,40 +25,54 @@ export class PrestamosService {
    * 3) Camino ASÍNCRONO (Redis): publica el evento 'prestamo.registrado' y NO espera a Notificaciones.
    */
   async create(dto: CreatePrestamoDto) {
-    const disponibilidad = await firstValueFrom(
-      this.librosClient.send<{ id: string; disponible: boolean }>(
-        'libros.verificarDisponibilidad',
-        dto.libroId,
-      ),
-    );
+    try {
+      const disponibilidad = await firstValueFrom(
+        this.librosClient.send<{ id: string; disponible: boolean }>(
+          'libros.verificarDisponibilidad',
+          dto.libroId,
+        ),
+      );
 
-    if (!disponibilidad?.disponible) {
+      if (!disponibilidad?.disponible) {
+        throw new RpcException({
+          statusCode: 409,
+          message: `El libro ${dto.libroId} no está disponible para préstamo`,
+        });
+      }
+
+      const prestamo = this.prestamoRepository.create({
+        libroId: dto.libroId,
+        usuario: dto.usuario,
+        estado: EstadoPrestamo.ACTIVO,
+      });
+      const guardado = await this.prestamoRepository.save(prestamo);
+
+      await firstValueFrom(
+        this.librosClient.send('libros.marcarComoPrestado', dto.libroId),
+      );
+
+      await firstValueFrom(
+        this.redisClient.emit('prestamo.registrado', {
+          prestamoId: guardado.id,
+          libroId: guardado.libroId,
+          usuario: guardado.usuario,
+          fecha: guardado.fechaPrestamo,
+        }),
+      );
+      this.logger.log(`Evento 'prestamo.registrado' publicado para préstamo ${guardado.id}`);
+
+      await this.publicarAuditoriaRabbit(guardado.id, guardado.libroId, guardado.usuario);
+
+      return guardado;
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
       throw new RpcException({
-        statusCode: 409,
-        message: `El libro ${dto.libroId} no está disponible para préstamo`,
+        statusCode: 500,
+        message: (error as Error)?.message ?? 'Error creando el préstamo',
       });
     }
-
-    const prestamo = this.prestamoRepository.create({
-      libroId: dto.libroId,
-      usuario: dto.usuario,
-      estado: EstadoPrestamo.ACTIVO,
-    });
-    const guardado = await this.prestamoRepository.save(prestamo);
-
-    await firstValueFrom(
-      this.librosClient.send('libros.marcarComoPrestado', dto.libroId),
-    );
-
-    this.redisClient.emit('prestamo.registrado', {
-      prestamoId: guardado.id,
-      libroId: guardado.libroId,
-      usuario: guardado.usuario,
-      fecha: guardado.fechaPrestamo,
-    });
-    this.logger.log(`Evento 'prestamo.registrado' publicado para préstamo ${guardado.id}`);
-
-    return guardado;
   }
 
   findAll() {
@@ -98,7 +113,26 @@ export class PrestamosService {
    * contra testSync() y evidenciar que el camino asíncrono no acumula latencia.
    */
   testAsync() {
-    this.redisClient.emit('prestamo.test', { test: true, fecha: new Date() });
-    return { publicado: true };
+    return firstValueFrom(
+      this.redisClient.emit('prestamo.test', { test: true, fecha: new Date() }),
+    ).then(() => ({ publicado: true }));
+  }
+
+  private async publicarAuditoriaRabbit(prestamoId: string, libroId: string, usuario: string) {
+    try {
+      await firstValueFrom(
+        this.rabbitmqClient.emit('prestamo.auditoria', {
+          prestamoId,
+          libroId,
+          usuario,
+          fecha: new Date(),
+        }),
+      );
+      this.logger.log(`Evento 'prestamo.auditoria' publicado por RabbitMQ para préstamo ${prestamoId}`);
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo publicar 'prestamo.auditoria' por RabbitMQ: ${(error as Error)?.message ?? error}`,
+      );
+    }
   }
 }

@@ -1,8 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /usr/src/app
-COPY package*.json ./
+COPY apps/prestamos/package*.json ./
 RUN npm install
-COPY . .
+COPY apps/prestamos/. .
 RUN npm run build
 
 FROM node:20-alpine

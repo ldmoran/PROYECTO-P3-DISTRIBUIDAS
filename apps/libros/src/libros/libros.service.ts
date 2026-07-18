@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Libro } from './entities/libro.entity';
@@ -44,6 +45,20 @@ export class LibrosService {
   async verificarDisponibilidad(id: string) {
     const libro = await this.findOne(id);
     return { id: libro.id, disponible: libro.disponible };
+  }
+
+  async obtenerLibroGrpc(id: string) {
+    try {
+      return await this.findOne(id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new RpcException({ statusCode: 404, message: error.message });
+      }
+      throw new RpcException({
+        statusCode: 500,
+        message: (error as Error)?.message ?? 'Error obteniendo libro por gRPC',
+      });
+    }
   }
 
   async marcarComoPrestado(id: string) {

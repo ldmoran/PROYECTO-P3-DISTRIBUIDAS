@@ -35,7 +35,9 @@ services:
       retries: 5
 
   libros:
-    build: ./apps/libros
+    build:
+      context: .
+      dockerfile: apps/libros/Dockerfile
     container_name: biblioteca-libros
     restart: unless-stopped
     environment:
@@ -52,7 +54,9 @@ services:
       - biblioteca-net
 
   prestamos:
-    build: ./apps/prestamos
+    build:
+      context: .
+      dockerfile: apps/prestamos/Dockerfile
     container_name: biblioteca-prestamos
     restart: unless-stopped
     environment:
@@ -66,10 +70,13 @@ services:
       LIBROS_TCP_PORT: 4001
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       libros:
         condition: service_started
@@ -77,7 +84,9 @@ services:
       - biblioteca-net
 
   notificaciones:
-    build: ./apps/notificaciones
+    build:
+      context: .
+      dockerfile: apps/notificaciones/Dockerfile
     container_name: biblioteca-notificaciones
     restart: unless-stopped
     environment:
@@ -97,7 +106,9 @@ services:
       - biblioteca-net
 
   gateway:
-    build: ./apps/gateway
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
     container_name: biblioteca-gateway
     restart: unless-stopped
     environment:
@@ -106,13 +117,30 @@ services:
       LIBROS_TCP_PORT: 4001
       PRESTAMOS_TCP_HOST: prestamos
       PRESTAMOS_TCP_PORT: 4002
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     ports:
       - "3000:3000"
     depends_on:
       - libros
       - prestamos
+      - rabbitmq
     networks:
       - biblioteca-net
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: biblioteca-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - biblioteca-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pg_data:

@@ -1,8 +1,9 @@
 FROM node:20-alpine AS build
 WORKDIR /usr/src/app
-COPY package*.json ./
+COPY apps/gateway/package*.json ./
 RUN npm install
-COPY . .
+COPY apps/gateway/. .
+COPY proto ./proto
 RUN npm run build
 
 FROM node:20-alpine

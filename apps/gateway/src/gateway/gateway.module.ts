@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { join } from 'path';
 import { GatewayController } from './gateway.controller';
 import { GatewayService } from './gateway.service';
 
@@ -28,6 +29,18 @@ import { GatewayService } from './gateway.service';
           options: {
             host: config.get<string>('PRESTAMOS_TCP_HOST'),
             port: +config.get<string>('PRESTAMOS_TCP_PORT', '4002'),
+          },
+        }),
+      },
+      {
+        name: 'LIBROS_GRPC_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: () => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'biblioteca',
+            protoPath: join(process.cwd(), 'proto', 'libros.proto'),
           },
         }),
       },

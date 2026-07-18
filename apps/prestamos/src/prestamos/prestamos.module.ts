@@ -34,6 +34,21 @@ import { Prestamo } from './entities/prestamo.entity';
           },
         }),
       },
+      {
+        name: 'RABBITMQ_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [config.get<string>('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq:5672')],
+            queue: 'prestamo.auditoria',
+            queueOptions: {
+              durable: false,
+            },
+          },
+        }),
+      },
     ]),
   ],
   controllers: [PrestamosController],

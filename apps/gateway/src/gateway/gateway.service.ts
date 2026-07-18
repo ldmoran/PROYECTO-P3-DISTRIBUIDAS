@@ -1,13 +1,33 @@
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { HttpException, HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ClientGrpc, ClientProxy } from '@nestjs/microservices';
 import { catchError, firstValueFrom, throwError } from 'rxjs';
 
+interface LibroGrpcResponse {
+  id: string;
+  titulo: string;
+  autor: string;
+  isbn: string;
+  disponible: boolean;
+}
+
+interface LibroGrpcService {
+  obtenerLibro(data: { id: string }): import('rxjs').Observable<LibroGrpcResponse>;
+}
+
 @Injectable()
-export class GatewayService {
+export class GatewayService implements OnModuleInit {
+  private readonly logger = new Logger(GatewayService.name);
+  private librosGrpcService!: LibroGrpcService;
+
   constructor(
     @Inject('LIBROS_SERVICE') private readonly librosClient: ClientProxy,
     @Inject('PRESTAMOS_SERVICE') private readonly prestamosClient: ClientProxy,
+    @Inject('LIBROS_GRPC_SERVICE') private readonly librosGrpcClient: ClientGrpc,
   ) {}
+
+  onModuleInit() {
+    this.librosGrpcService = this.librosGrpcClient.getService<LibroGrpcService>('LibrosService');
+  }
 
   private forward<T>(client: ClientProxy, pattern: string, data: any): Promise<T> {
     return firstValueFrom(
@@ -33,6 +53,16 @@ export class GatewayService {
   }
   obtenerLibro(id: string) {
     return this.forward(this.librosClient, 'libros.findOne', id);
+  }
+
+  async obtenerLibroGrpc(id: string) {
+    try {
+      return await firstValueFrom(this.librosGrpcService.obtenerLibro({ id }));
+    } catch (error) {
+      const status = error?.code === 5 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+      const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
+      throw new HttpException(message, status);
+    }
   }
   actualizarLibro(id: string, dto: any) {
     return this.forward(this.librosClient, 'libros.update', { id, dto });
@@ -61,5 +91,10 @@ export class GatewayService {
   }
   testAsync() {
     return this.forward(this.prestamosClient, 'prestamos.testAsync', {});
+  }
+
+  registrarPrestamoAuditoria(payload: any) {
+    this.logger.log(`Auditoría RabbitMQ recibida: ${JSON.stringify(payload)}`);
+    return { recibido: true };
   }
 }
