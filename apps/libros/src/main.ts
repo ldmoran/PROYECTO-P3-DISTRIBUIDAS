@@ -23,6 +23,7 @@ async function bootstrap() {
     options: {
       package: 'biblioteca',
       protoPath: join(process.cwd(), 'proto', 'libros.proto'),
+      url: `0.0.0.0:${process.env.GRPC_PORT ?? 5000}`,
     },
   });
 

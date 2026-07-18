@@ -12,4 +12,5 @@ ENV NODE_ENV=production
 COPY --from=build /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/package*.json ./
+COPY --from=build /usr/src/app/proto ./proto
 CMD ["node", "dist/main"]

@@ -491,22 +491,8 @@ TCP conviene cuando necesito respuesta inmediata y control del flujo, como verif
 
 ### 6) Evidencias del Avance 2
 
-Las capturas deben quedar dentro de `docs/evidencias/` y quedar referenciadas aquí en el README:
-
 - gRPC exitoso entre Gateway y Libros.
 - gRPC con error controlado para un libro inexistente.
 - Evento `prestamo.auditoria` publicado en RabbitMQ y consumido por el Gateway.
 - Logs o captura del `try/catch` mostrando que el servicio no cae.
 
-Comandos útiles para la demo:
-
-```bash
-docker compose up -d --build
-docker compose logs gateway --tail=50
-docker compose logs prestamos --tail=50
-curl http://localhost:3000/api/libros/grpc/ID_EXISTENTE
-curl http://localhost:3000/api/libros/grpc/ID_INEXISTENTE
-```
-
-## 🏷️ Tags de entrega
-- `v1-avance1` — <<fecha>> · `v2-avance2` — <<fecha>> · `v3-final` — <<fecha>>
