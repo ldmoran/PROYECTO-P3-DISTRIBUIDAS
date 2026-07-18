@@ -120,6 +120,8 @@ services:
       LIBROS_TCP_PORT: 4001
       PRESTAMOS_TCP_HOST: prestamos
       PRESTAMOS_TCP_PORT: 4002
+      LIBROS_GRPC_HOST: libros
+      LIBROS_GRPC_PORT: 5000
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
     ports:
       - "3000:3000"

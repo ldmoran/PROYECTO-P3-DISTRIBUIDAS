@@ -36,11 +36,12 @@ import { GatewayService } from './gateway.service';
         name: 'LIBROS_GRPC_SERVICE',
         imports: [ConfigModule],
         inject: [ConfigService],
-        useFactory: () => ({
+        useFactory: (config: ConfigService) => ({
           transport: Transport.GRPC,
           options: {
             package: 'biblioteca',
             protoPath: join(process.cwd(), 'proto', 'libros.proto'),
+            url: `${config.get<string>('LIBROS_GRPC_HOST', 'libros')}:${config.get<string>('LIBROS_GRPC_PORT', '5000')}`,
           },
         }),
       },
