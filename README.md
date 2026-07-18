@@ -376,81 +376,6 @@ La arquitectura implementada permite utilizar cada tipo de comunicación según 
 
 ## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
 
-### gRPC en el monorepo
-Se incorporó un flujo gRPC entre el API Gateway y el microservicio de Libros. El contrato está definido en [proto/libros.proto](proto/libros.proto) y expone el método `ObtenerLibro`, con mensajes `LibroRequest` y `LibroResponse`.
-
-El flujo queda así:
-
-```text
-Cliente → Gateway HTTP → Libros (gRPC)
-```
-
-El gateway invoca al servicio con `getService('LibrosService')` y el microservicio de Libros responde con los datos del libro o un error controlado. La lógica de negocio en [apps/libros/src/libros/libros.service.ts](apps/libros/src/libros/libros.service.ts) y [apps/gateway/src/gateway/gateway.service.ts](apps/gateway/src/gateway/gateway.service.ts) envuelve la operación con `try/catch`/`RpcException` para que un fallo no rompa el flujo completo del sistema.
-
-### Segundo transporte: RabbitMQ
-Se añadió RabbitMQ como segundo transporte de mensajería para la auditoría de préstamos. El microservicio de Préstamos publica el evento `prestamo.auditoria` y el Gateway lo consume de forma asíncrona mediante un handler `@EventPattern`, manteniendo el flujo desacoplado del camino principal.
-
-```text
-Préstamos → RabbitMQ → Gateway (auditoría)
-```
-
-Este transporte es distinto al Redis del Avance 1, que sigue usándose para eventos de negocio como `prestamo.registrado` y `prestamo.test`.
-
-### 🔁 Comparación de transportes
-| Transporte | Tipo | Patrón | Uso en el proyecto |
-|---|---|---|---|
-| TCP | Síncrono | Petición-respuesta | Camino principal Gateway → Préstamos → Libros |
-| Redis | Asíncrono | PUB/SUB | Eventos de negocio y benchmark del Avance 1 |
-| RabbitMQ | Asíncrono | Cola / eventos | Auditoría de préstamos y desacoplamiento del flujo |
-| gRPC | Síncrono | Contrato/RPC | Consulta de libro por contrato `.proto` |
-
-TCP conviene cuando se necesita una respuesta inmediata y validación; Redis y RabbitMQ son mejores para eventos asíncronos; gRPC resulta adecuado cuando ambos servicios comparten un contrato claro y estable.
-
-### 🧯 Manejo de excepciones
-Se controla el error de libro inexistente en la capa de servicios:
-
-- En [apps/libros/src/libros/libros.service.ts](apps/libros/src/libros/libros.service.ts), `obtenerLibroGrpc()` captura la excepción y la transforma en un `RpcException` con estado `404`.
-- En [apps/gateway/src/gateway/gateway.service.ts](apps/gateway/src/gateway/gateway.service.ts), `obtenerLibroGrpc()` traduce el fallo a una respuesta HTTP controlada en vez de dejar que el servicio se caiga.
-
-Esto demuestra que un error conocido no tumba el sistema: el cliente recibe un mensaje claro de error y el servicio sigue disponible para otras operaciones.
-
-### Evidencias y validación
-Comandos útiles para validar el avance 2:
-
-```bash
-docker compose up -d --build
-curl http://localhost:3000/api/libros/grpc/<id-existente>
-curl -i http://localhost:3000/api/libros/grpc/<id-inexistente>
-docker compose logs gateway --tail=50
-```
-
-Resultado esperado:
-- La primera llamada devuelve el libro por gRPC.
-- La segunda devuelve un error `404` controlado.
-- Los logs del gateway muestran el evento `prestamo.auditoria` recibido desde RabbitMQ.
-
----
-
-## 🔵 Avance 3 — Seguridad, observabilidad e integración (FINAL) · `tag v3-final`
-### 🔐 Autenticación y autorización
-✍️ <<Login que emite JWT; Guard que protege rutas. Evidencia: 200 con token, 401 sin token (y 403 por rol si aplica).>>
-
-### 📊 Observabilidad (Sentry)
-✍️ <<Qué se registra; captura del error en el panel de Sentry.>>
-
-### 🔗 Integración final
-✍️ <<Operación que atraviesa varios microservicios/transportes desde el Gateway.>>
-
-### 🏗️ Diagrama final
-✍️ <<Sistema integrado>>
-
----
-
-## 🎤 Defensa
-✍️ <<Enlace a diapositivas + guion. Runbook de la demo (levantar → login → ruta protegida → operación integrada → error en Sentry). Preguntas frecuentes preparadas.>>
-
-## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
-
 ### 1) Arquitectura actualizada
 
 ```mermaid
@@ -526,26 +451,61 @@ TCP conviene cuando necesito respuesta inmediata y control del flujo, como verif
 
 ### 6) Evidencias del Avance 2
 
-- gRPC exitoso entre Gateway y Libros.
-- gRPC con error controlado para un libro inexistente.
-- Evento `prestamo.auditoria` publicado en RabbitMQ y consumido por el Gateway.
-- Logs o captura del `try/catch` mostrando que el servicio no cae.
 
-### Evidencias (capturas)
+#### Crear libro (Postman)
+Respuesta `201 Created` al crear un libro; se muestra el `id` que se usa en las siguientes pruebas.
 
-Las capturas se encuentran en la carpeta `docs/avance2/`. A continuación se listan las imágenes que subimos y una breve descripción de cada una:
+![Crear libro](docs/evidencias/avance2/1.PNG)
 
-- **docs/avance2/postman-create-libro.png**: Respuesta del endpoint `POST /api/libros` en Postman mostrando el libro creado y su `id` (usado en las pruebas siguientes).
+#### Consulta gRPC exitosa (Gateway → Libros)
+`GET /api/libros/grpc/:id` devuelve el registro del libro vía gRPC.
 
-- **docs/avance2/grpc-success.png**: Resultado de `GET /api/libros/grpc/:id` vía Gateway — respuesta exitosa devuelta por el microservicio `Libros` a través de gRPC.
+![gRPC success](docs/evidencias/avance2/2.PNG)
 
-- **docs/avance2/grpc-not-found.png**: Prueba con un `id` inexistente que demuestra el manejo de excepción: respuesta HTTP 404 controlada devuelta por el Gateway tras recibir un `RpcException` del servicio gRPC.
+#### gRPC — libro inexistente (manejo de excepción)
+Prueba con un `id` inválido; el Gateway devuelve un error controlado indicando que el libro no fue encontrado.
 
-- **docs/avance2/prestamo-created-postman.png**: Captura de Postman donde se crea un préstamo (POST `/api/prestamos`) que dispara la publicación a RabbitMQ.
+![gRPC not found](docs/evidencias/avance2/3.PNG)
 
-- **docs/avance2/rabbitmq-ui.png**: Panel de administración de RabbitMQ mostrando la cola `prestamo.auditoria` y los contadores de mensajes / consumidores.
+#### Crear préstamo (Postman)
+`POST /api/prestamos` crea el préstamo y dispara la publicación a RabbitMQ (respuesta `201 Created`).
 
-- **docs/avance2/gateway-logs-auditoria.png**: Extracto de los logs del Gateway donde se muestra `Evento RabbitMQ 'prestamo.auditoria' recibido: ...`, evidenciando el consumo asíncrono.
+![Crear préstamo](docs/evidencias/avance2/4.PNG)
 
-Guarda estas imágenes en `docs/avance2/` y confirma para que ajuste los textos finales o el orden si lo deseas.
+#### Logs del Gateway (inicio y rutas)
+Extracto del terminal con el arranque del Gateway y el mapeo de rutas expuestas.
 
+![Gateway logs](docs/evidencias/avance2/0.PNG)
+
+#### RabbitMQ — Queues
+Panel de administración mostrando la cola `prestamo.auditoria` (mensajes y consumidores).
+
+![RabbitMQ queues](docs/evidencias/avance2/6.PNG)
+
+#### Contenedores (Docker)
+Vista de los contenedores en Docker mostrando que los servicios están corriendo.
+
+![Contenedores](docs/evidencias/avance2/5.PNG)
+
+#### Logs RabbitMQ
+Extracto de logs del contenedor `rabbitmq` durante el arranque.
+
+![RabbitMQ logs](docs/evidencias/avance2/7.PNG)
+
+## 🔵 Avance 3 — Seguridad, observabilidad e integración (FINAL) · `tag v3-final`
+### 🔐 Autenticación y autorización
+✍️ <<Login que emite JWT; Guard que protege rutas. Evidencia: 200 con token, 401 sin token (y 403 por rol si aplica).>>
+
+### 📊 Observabilidad (Sentry)
+✍️ <<Qué se registra; captura del error en el panel de Sentry.>>
+
+### 🔗 Integración final
+✍️ <<Operación que atraviesa varios microservicios/transportes desde el Gateway.>>
+
+### 🏗️ Diagrama final
+✍️ <<Sistema integrado>>
+
+---
+
+## 🎤 Defensa
+✍️ <<Enlace a diapositivas + guion. Runbook de la demo (levantar → login → ruta protegida → operación integrada → error en Sentry). Preguntas frecuentes preparadas.>>
