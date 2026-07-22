@@ -1,16 +1,21 @@
 # Sistema de Gestión de Biblioteca Universitaria
+
 > MVP de arquitectura de microservicios · Distribuidas · 7.° semestre · Entrega por avances.
 
 ## 👥 Equipo
+
 | Integrante | Rol | GitHub |
 |---|---|---|
-| David Moran | Backend / Arquitectura | @usuario |
+| David Moran | Backend / Arquitectura | @ldmoran |
 | Gabriel Vivanco | Transportes / gRPC | @usuario |
 | Alison Miranda | Seguridad / Observabilidad | @usuario |
 | Samir Mideros | Documentación / QA | @usuario |
 
 ## 🧩 Descripción del MVP
-El sistema permite administrar el catálogo de libros de una biblioteca universitaria y los préstamos que los usuarios realizan sobre ese catálogo, generando notificaciones cuando un préstamo se registra. El dominio se mantiene deliberadamente sencillo (3 entidades: Libro, Préstamo, Notificación) para que el esfuerzo del proyecto se concentre en la **arquitectura de comunicación entre microservicios** (síncrona vs. asíncrona) y no en lógica de negocio compleja.
+
+El sistema permite administrar el catálogo de libros de una biblioteca universitaria y los préstamos que los usuarios realizan sobre ese catálogo, generando notificaciones cuando un préstamo se registra.
+
+El dominio se mantiene deliberadamente sencillo (3 entidades: Libro, Préstamo, Notificación) para que el esfuerzo del proyecto se concentre en la **arquitectura de comunicación entre microservicios** (síncrona vs. asíncrona) y no en lógica de negocio compleja.
 
 - **MS 1 — Libros:** administra el catálogo (crear, consultar, actualizar, eliminar, verificar disponibilidad).
 - **MS 2 — Préstamos:** registra préstamos; antes de confirmar uno, consulta de forma **síncrona (TCP)** al MS Libros para verificar disponibilidad; al terminar, publica un **evento asíncrono en Redis**.
@@ -18,23 +23,52 @@ El sistema permite administrar el catálogo de libros de una biblioteca universi
 - **API Gateway:** punto único de entrada HTTP para el cliente; redirige al microservicio correspondiente.
 
 ## 🛠️ Stack
+
 - **Framework:** NestJS (TypeScript)
-- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub) · **RPC:** gRPC · **Mensajería:** RabbitMQ
+- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub)
 - **BD:** PostgreSQL · **Persistencia:** TypeORM
-- **Contenedores:** Docker Compose · **Estructura:** monorepo (`apps/`)
+- **Contenedores:** Docker Compose · **Estructura:** monorepo (apps/)
 - **Control de versiones:** Git + GitHub (GitHub Flow)
 
-> En el **Avance 1** no incluimos gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry. Esos temas se agregan en los avances siguientes.
+> Este avance **no incluye** gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry — esos temas corresponden a los Avances 2 y 3.
 
-## ▶️ Cómo ejecutar
+## ▶️ Ejecución del proyecto
+
+El sistema se despliega mediante **Docker Compose**, levantando automáticamente todos los componentes de la arquitectura:
+
+- API Gateway
+- Microservicio Libros
+- Microservicio Préstamos
+- Microservicio Notificaciones
+- PostgreSQL
+- Redis
+
+### Iniciar el sistema
+
 ```bash
-docker compose up -d --build
-docker compose ps
-curl http://localhost:3000/api/libros
+docker compose up --build
 ```
-*(Este bloque se completará y verificará en los pasos de Docker Compose y CRUD.)*
+
+### Verificar el estado de los contenedores
+
+```bash
+docker compose ps
+```
+
+### Acceder al Gateway
+
+```text
+http://localhost:3000
+```
+
+### Evidencia de ejecución
+
+La siguiente captura muestra que todos los contenedores fueron creados e iniciados correctamente mediante Docker Compose.
+
+![Docker Compose](docs/evidencias/docker-compose-ok.png)
 
 ## 🏗️ Arquitectura
+
 ```
 Cliente
   │  HTTP
@@ -48,19 +82,59 @@ Préstamos ───────────────► Libros
   ▼
 Notificaciones
 ```
-*(Diagrama de imagen para `/docs` se agregará más adelante.)*
+
+### Diagrama de arquitectura
+
+El siguiente diagrama representa la arquitectura implementada en el proyecto, mostrando el flujo de comunicación entre el API Gateway, los microservicios y los mecanismos de comunicación utilizados (TCP y Redis Pub/Sub).
+
+![Arquitectura del sistema](docs/evidencias/Diagrama/arquitectura-v1.png)
 
 ## 🧭 Metodología
-- **Kanban:** *(pendiente — se enlaza en un paso posterior)*.
-- **Ramificación:** GitHub Flow — `main` protegida, ramas `feat/…`, `fix/…`, `docs/…`, PRs revisados, tag `v1-avance1` al cierre del avance.
-- **Commits semánticos:** Conventional Commits (`feat`, `fix`, `docs`, `refactor`, `chore`, `ci`).
+
+- **Kanban:** Ver archivo TABLERO_KANBAN.md, donde se registra el avance de las tareas del proyecto mediante un tablero con seguimiento por actividades.
+- **Ramificación:** GitHub Flow — main protegida, ramas feat/…, fix/…, docs/…, PRs revisados, tag v1-avance1 al cierre del avance.
+- **Commits semánticos:** Conventional Commits (feat, fix, docs, refactor, chore, ci).
 
 ## 🗺️ Patrones y principios aplicados
-*(Se documentan a medida que se implementan: API Gateway, Publisher/Subscriber, DTO+Pipes (SRP), Exception Filters, Inyección de Dependencias (DIP), etc.)*
+
+Durante el desarrollo del proyecto se aplicaron distintos patrones de diseño y principios SOLID con el objetivo de mejorar la organización, mantenibilidad y escalabilidad de la arquitectura.
+
+### API Gateway Pattern
+
+Se implementó un API Gateway como punto único de entrada para las solicitudes HTTP. Este componente recibe las peticiones del cliente y las redirige al microservicio correspondiente mediante comunicación TCP, evitando que los clientes accedan directamente a los servicios internos.
+
+### Publisher / Subscriber (Redis Pub/Sub)
+
+Para la comunicación asíncrona se utilizó el patrón Publisher/Subscriber mediante Redis Pub/Sub. El microservicio de Préstamos publica el evento `prestamo.registrado` y el microservicio de Notificaciones lo consume de forma independiente, reduciendo el acoplamiento temporal entre ambos servicios.
+
+### Dependency Injection
+
+NestJS utiliza inyección de dependencias para desacoplar los componentes de la aplicación. Esto facilita las pruebas, el mantenimiento y la reutilización del código.
+
+### Repository Pattern
+
+La persistencia de datos se realiza mediante TypeORM, el cual implementa el patrón Repository para encapsular el acceso a la base de datos y separar la lógica de negocio de la capa de persistencia.
+
+### Principio SRP (Single Responsibility Principle)
+
+Cada microservicio posee una única responsabilidad:
+
+- Libros administra el catálogo.
+- Préstamos gestiona el registro de préstamos.
+- Notificaciones procesa los eventos publicados.
+- Gateway centraliza el acceso de los clientes.
+
+### Principio DIP (Dependency Inversion Principle)
+
+La comunicación entre servicios se realiza mediante interfaces proporcionadas por NestJS para TCP y Redis, evitando dependencias directas entre las implementaciones de los microservicios.
+
+### Manejo de excepciones
+
+Se implementaron filtros globales de excepciones (`HttpExceptionFilter` y `AllExceptionsToRpcFilter`) junto con `ValidationPipe` para validar las solicitudes y mantener un manejo consistente de errores entre el Gateway y los microservicios.
 
 ---
 
-## 🟢 Avance 1 — Acoplamiento temporal y latencia · `tag v1-avance1`
+## 🟢 Avance 1 — Acoplamiento temporal y latencia · tag v1-avance1
 
 ### Paso 1 — Estructura de carpetas del monorepo
 
@@ -86,12 +160,14 @@ PROYECTO-P3-DISTRIBUIDAS/
 ```
 
 **Por qué lo hacemos así:**
-- **Monorepo (`apps/`):** los 4 servicios (Gateway + 3 microservicios) viven en un solo repositorio pero cada uno es un proyecto NestJS **independiente** (su propio `package.json`, `Dockerfile`, `tsconfig.json`). Esto es justo lo que pide la guía del profesor y facilita que Docker Compose construya cada servicio por separado sin perder la trazabilidad de commits en un único historial de Git.
-- **Carpetas vacías todavía:** en este paso solo preparamos el contenedor de carpetas. Cada carpeta dentro de `apps/` se llenará en el **Paso 2**, cuando ejecutemos `nest new` dentro de cada una — así evitamos mezclar la generación de código con la organización del repo, y si algo sale mal en un `nest new` es fácil de aislar.
-- **`docs/evidencias/`:** aquí van las capturas de latencia y de la prueba de caída del microservicio, que la rúbrica exige como evidencia obligatoria (criterio C2 y C5 de `TAREA_1.md`).
-- **Archivos raíz vacíos (`docker-compose.yml`, `benchmark.js`, etc.):** los dejamos creados como *placeholders* para que la estructura del repo coincida con la que espera el profesor desde el día 1, aunque su contenido real se agrega en pasos posteriores (Docker Compose en el Paso 4, benchmark en el Paso 16).
+
+- **Monorepo (apps/):** los 4 servicios (Gateway + 3 microservicios) viven en un solo repositorio pero cada uno es un proyecto NestJS **independiente** (su propio package.json, Dockerfile, tsconfig.json). Esto es justo lo que pide la guía del profesor y facilita que Docker Compose construya cada servicio por separado sin perder la trazabilidad de commits en un único historial de Git.
+- **Carpetas vacías todavía:** en este paso solo preparamos el contenedor de carpetas. Cada carpeta dentro de apps/ se llenará en el **Paso 2**, cuando ejecutemos `nest new` dentro de cada una — así evitamos mezclar la generación de código con la organización del repo, y si algo sale mal en un `nest new` es fácil de aislar.
+- **docs/evidencias/:** aquí van las capturas de latencia y de la prueba de caída del microservicio, que la rúbrica exige como evidencia obligatoria (criterio C2 y C5 de TAREA_1.md).
+- **Archivos raíz vacíos (docker-compose.yml, benchmark.js, etc.):** los dejamos creados como *placeholders* para que la estructura del repo coincida con la que espera el profesor desde el día 1, aunque su contenido real se agrega en pasos posteriores (Docker Compose en el Paso 4, benchmark en el Paso 16).
 
 **Comandos exactos ejecutados** (puedes correrlos tal cual en tu terminal, dentro de la carpeta donde quieras crear el proyecto):
+
 ```bash
 mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/gateway
 mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/libros
@@ -107,11 +183,9 @@ git add .
 git commit -m "chore: estructura inicial del monorepo (apps/, docs/)"
 ```
 
-### 📈 Latencia (con `benchmark.js`)
+### 📈 Latencia (con benchmark.js)
 
-Se realizaron 50 peticiones para comparar el comportamiento del camino síncrono
-(Gateway → Préstamos → Libros mediante TCP) frente al camino asíncrono
-(Préstamos → Redis → Notificaciones).
+Se realizaron 50 peticiones para comparar el comportamiento del camino síncrono (Gateway → Préstamos → Libros mediante TCP) frente al camino asíncrono (Préstamos → Redis → Notificaciones).
 
 | Comunicación | Promedio (ms) | P95 (ms) | Máximo (ms) |
 |---|---:|---:|---:|
@@ -119,12 +193,11 @@ Se realizaron 50 peticiones para comparar el comportamiento del camino síncrono
 | Asíncrona Redis Pub/Sub | 1.84 | 2.41 | 5.06 |
 
 Resultados:
+
 - La comunicación asíncrona presentó menor latencia debido a que el servicio de préstamos no espera la respuesta del consumidor del evento.
 - La comunicación síncrona tiene mayor tiempo de respuesta porque requiere esperar la consulta TCP al microservicio Libros.
 
-
 ![alt text](docs/evidencias/benchmark-latencia.png)
-
 
 ## 🧪 Pruebas funcionales con Postman
 
@@ -137,24 +210,18 @@ Para verificar la comunicación entre los microservicios se realizaron pruebas m
 Primero se obtiene un libro existente desde el API Gateway para utilizar su identificador en la prueba de préstamo.
 
 ### Método:
+
 ```
-
 GET
-
 ```
 
 ### Endpoint:
-```
 
 [http://localhost:3000/api/libros](http://localhost:3000/api/libros)
 
-```
-
 ### Resultado esperado:
 
-La respuesta devuelve la lista de libros disponibles con su respectivo identificador (`id`).
-
-Ejemplo:
+La respuesta devuelve la lista de libros disponibles con su respectivo identificador (id). Ejemplo:
 
 ```json
 [
@@ -168,7 +235,7 @@ Ejemplo:
 ]
 ```
 
-Se copia el valor del campo `id`, ya que será utilizado en la siguiente prueba.
+Se copia el valor del campo id, ya que será utilizado en la siguiente prueba.
 
 ### Evidencia:
 
@@ -212,7 +279,7 @@ http://localhost:3000/api/prestamos/test-sync
 
 ### Headers:
 
-| Key          | Value            |
+| Key | Value |
 | ------------ | ---------------- |
 | Content-Type | application/json |
 
@@ -260,9 +327,7 @@ Ejemplo:
 
 # 3. Prueba de comunicación asíncrona Redis Pub/Sub
 
-Se realiza una prueba donde el microservicio Préstamos genera un evento utilizando Redis Pub/Sub.
-
-El flujo interno utilizado es:
+Se realiza una prueba donde el microservicio Préstamos genera un evento utilizando Redis Pub/Sub. El flujo interno utilizado es:
 
 ```
 Microservicio Préstamos
@@ -307,9 +372,7 @@ Enviar:
 
 La solicitud se procesa correctamente y el evento es publicado en Redis.
 
-
 ![alt text](<docs/evidencias/prueba-redis/asíncrona Redis Pub-Sub.png>)
-
 
 ### Validación en logs:
 
@@ -341,18 +404,12 @@ Evento recibido y procesado por Notificaciones
 
 ![alt text](<docs/evidencias/prueba-redis/compose logs notificaciones --tail=30.png>)
 
-
 ### 🧨 Acoplamiento temporal
 
 El sistema presenta dos tipos de comunicación:
 
-- Comunicación síncrona TCP:
-  El microservicio Préstamos depende temporalmente del microservicio Libros, ya que debe esperar su respuesta antes de confirmar la operación.
-
-- Comunicación asíncrona Redis Pub/Sub:
-  El microservicio Préstamos publica el evento `prestamo.registrado` y continúa su ejecución sin esperar al microservicio Notificaciones.
-
-Esto reduce el acoplamiento temporal y mejora la disponibilidad del sistema.
+- Comunicación síncrona TCP: El microservicio Préstamos depende temporalmente del microservicio Libros, ya que debe esperar su respuesta antes de confirmar la operación.
+- Comunicación asíncrona Redis Pub/Sub: El microservicio Préstamos publica el evento prestamo.registrado y continúa su ejecución sin esperar al microservicio Notificaciones. Esto reduce el acoplamiento temporal y mejora la disponibilidad del sistema.
 
 ### Ejecución del benchmark
 
@@ -362,7 +419,6 @@ node benchmark.js <libroId>
 
 ![alt text](docs/evidencias/benchmark-latencia.png)
 
-
 ### 🧠 Análisis
 
 Los resultados muestran que la comunicación asíncrona mediante Redis Pub/Sub presenta una menor latencia debido a que el microservicio Préstamos no necesita esperar una respuesta del servicio Notificaciones para finalizar la operación.
@@ -370,8 +426,43 @@ Los resultados muestran que la comunicación asíncrona mediante Redis Pub/Sub p
 En cambio, la comunicación síncrona mediante TCP presenta una mayor latencia porque existe una dependencia temporal entre Préstamos y Libros. El servicio debe enviar una solicitud y esperar la respuesta antes de continuar.
 
 La arquitectura implementada permite utilizar cada tipo de comunicación según la necesidad del sistema:
+
 - TCP para operaciones donde se requiere una respuesta inmediata y validación antes de continuar.
 - Redis Pub/Sub para eventos donde no es necesario bloquear el flujo principal.
+
+## 🧪 Prueba de caída del microservicio
+
+Con el objetivo de evidenciar el acoplamiento temporal de la comunicación síncrona, se detuvo el microservicio **Libros** mientras el resto de la arquitectura permanecía en ejecución.
+
+### Detener el microservicio
+
+```bash
+docker stop biblioteca-libros
+docker compose ps
+```
+
+### Evidencia
+
+![Microservicio Libros detenido](docs/evidencias/prueba-caida/docker-compose-libros-detenido.png)
+
+Al intentar registrar un préstamo, el Gateway y el microservicio de Préstamos no pudieron establecer comunicación con Libros, obteniéndose el siguiente error:
+
+![Error de comunicación](docs/evidencias/prueba-caida/error-libros-caido.png)
+
+Una vez iniciado nuevamente el microservicio:
+
+```bash
+docker start biblioteca-libros
+```
+
+la operación volvió a ejecutarse correctamente.
+
+![Servicio recuperado](docs/evidencias/prueba-caida/libros-recuperado.png)
+
+### Análisis
+
+La prueba evidencia el **acoplamiento temporal** de la comunicación síncrona mediante TCP. El microservicio **Préstamos** depende de que el microservicio **Libros** esté disponible para completar la validación y registrar un préstamo. Cuando **Libros** se encuentra detenido, la solicitud falla porque no es posible establecer la comunicación entre ambos servicios. Una vez reiniciado el microservicio, la operación vuelve a ejecutarse correctamente, demostrando que el funcionamiento del flujo depende de la disponibilidad del servicio remoto.
+
 ---
 
 ## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
