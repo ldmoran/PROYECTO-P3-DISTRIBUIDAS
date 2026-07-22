@@ -92,8 +92,8 @@ El siguiente diagrama representa la arquitectura implementada en el proyecto, mo
 ## 🧭 Metodología
 
 - **Kanban:** Ver archivo TABLERO_KANBAN.md, donde se registra el avance de las tareas del proyecto mediante un tablero con seguimiento por actividades.
-- **Ramificación:** GitHub Flow — main protegida, ramas feat/…, fix/…, docs/…, PRs revisados, tag v1-avance1 al cierre del avance.
-- **Commits semánticos:** Conventional Commits (feat, fix, docs, refactor, chore, ci).
+- **Ramificación:** cada integrante trabajó sobre su propia rama personal (`alison-miranda`, `david-moran`, `gabriel-vivanco`, `samir-mideros`) partiendo de `main`. El PR #1 (`samir-mideros` → `main`) fue el primero revisado y fusionado por GitHub. Los cierres de avance se marcan con **tags anotados reales** (`git tag -a v1-avance1 <commit> -m "..."`), no con mensajes de commit como se hizo al inicio.
+- **Commits:** el historial temprano usa mensajes genéricos (`update`, `first commit`); a partir de esta corrección el equipo adopta Conventional Commits (`feat`, `fix`, `docs`, `refactor`, `chore`) de forma consistente.
 
 ## 🗺️ Patrones y principios aplicados
 
@@ -136,9 +136,7 @@ Se implementaron filtros globales de excepciones (`HttpExceptionFilter` y `AllEx
 
 ## 🟢 Avance 1 — Acoplamiento temporal y latencia · tag v1-avance1
 
-### Paso 1 — Estructura de carpetas del monorepo
-
-**Qué hicimos:** creamos el esqueleto de carpetas del repositorio, sin generar aún ningún proyecto NestJS dentro:
+### Estructura del monorepo
 
 ```
 PROYECTO-P3-DISTRIBUIDAS/
@@ -149,39 +147,15 @@ PROYECTO-P3-DISTRIBUIDAS/
 │   └── notificaciones/
 ├── docs/
 │   └── evidencias/
+├── proto/
+│   └── libros.proto
 ├── docker-compose.yml
+├── docker-compose.transportes.yml
 ├── benchmark.js
-├── README.md
-├── README.plantilla.md
-├── GUIA_GENERAL.md
-├── TABLERO_KANBAN.md
-├── TAREA_1.md
-└── .gitignore
+└── README.md
 ```
 
-**Por qué lo hacemos así:**
-
-- **Monorepo (apps/):** los 4 servicios (Gateway + 3 microservicios) viven en un solo repositorio pero cada uno es un proyecto NestJS **independiente** (su propio package.json, Dockerfile, tsconfig.json). Esto es justo lo que pide la guía del profesor y facilita que Docker Compose construya cada servicio por separado sin perder la trazabilidad de commits en un único historial de Git.
-- **Carpetas vacías todavía:** en este paso solo preparamos el contenedor de carpetas. Cada carpeta dentro de apps/ se llenará en el **Paso 2**, cuando ejecutemos `nest new` dentro de cada una — así evitamos mezclar la generación de código con la organización del repo, y si algo sale mal en un `nest new` es fácil de aislar.
-- **docs/evidencias/:** aquí van las capturas de latencia y de la prueba de caída del microservicio, que la rúbrica exige como evidencia obligatoria (criterio C2 y C5 de TAREA_1.md).
-- **Archivos raíz vacíos (docker-compose.yml, benchmark.js, etc.):** los dejamos creados como *placeholders* para que la estructura del repo coincida con la que espera el profesor desde el día 1, aunque su contenido real se agrega en pasos posteriores (Docker Compose en el Paso 4, benchmark en el Paso 16).
-
-**Comandos exactos ejecutados** (puedes correrlos tal cual en tu terminal, dentro de la carpeta donde quieras crear el proyecto):
-
-```bash
-mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/gateway
-mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/libros
-mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/prestamos
-mkdir -p PROYECTO-P3-DISTRIBUIDAS/apps/notificaciones
-mkdir -p PROYECTO-P3-DISTRIBUIDAS/docs/evidencias
-
-cd PROYECTO-P3-DISTRIBUIDAS
-touch docker-compose.yml benchmark.js GUIA_GENERAL.md TABLERO_KANBAN.md TAREA_1.md README.plantilla.md .gitignore
-
-git init
-git add .
-git commit -m "chore: estructura inicial del monorepo (apps/, docs/)"
-```
+Cada servicio dentro de `apps/` es un proyecto NestJS **independiente** (su propio `package.json`, `Dockerfile`, `tsconfig.json`), lo que permite que Docker Compose construya cada uno por separado sin perder la trazabilidad de commits en un único historial de Git. `docs/evidencias/` contiene las capturas de latencia y de la prueba de caída del microservicio que exige la rúbrica (criterios C2 y C5 de TAREA_1.md).
 
 ### 📈 Latencia (con benchmark.js)
 
@@ -466,6 +440,14 @@ La prueba evidencia el **acoplamiento temporal** de la comunicación síncrona m
 ---
 
 ## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
+
+### 0) Ejecución del stack de Avance 2
+
+El Avance 2 agrega RabbitMQ y el puerto gRPC de Libros, así que se levanta con su propio archivo Compose (incluye Postgres, Redis y RabbitMQ con healthchecks reales):
+
+```bash
+docker compose -f docker-compose.transportes.yml up --build
+```
 
 ### 1) Arquitectura actualizada
 
