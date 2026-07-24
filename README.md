@@ -441,15 +441,15 @@ La prueba evidencia el **acoplamiento temporal** de la comunicación síncrona m
 
 ## 🟡 Avance 2 — Comunicación: gRPC + segundo transporte + excepciones · `tag v2-avance2`
 
-### 0) Ejecución del stack de Avance 2
+### 1) Ejecución del stack de Avance 2
 
-El Avance 2 agrega RabbitMQ y el puerto gRPC de Libros, así que se levanta con su propio archivo Compose (incluye Postgres, Redis y RabbitMQ con healthchecks reales):
+Se agrega RabbitMQ y el puerto gRPC de Libros, así que se levanta con su propio archivo Compose (incluye Postgres, Redis y RabbitMQ con healthchecks reales):
 
 ```bash
 docker compose -f docker-compose.transportes.yml up --build
 ```
 
-### 1) Arquitectura actualizada
+### 2) Arquitectura actualizada
 
 ```mermaid
 flowchart LR
@@ -461,7 +461,7 @@ flowchart LR
   P -->|RabbitMQ queue| G
 ```
 
-### 2) Contrato gRPC
+### 3) Contrato gRPC
 
 Archivo compartido del monorepo: `proto/libros.proto`
 
@@ -495,7 +495,7 @@ Ejemplo de prueba con `grpcurl`:
 grpcurl -plaintext -proto proto/libros.proto -d '{"id":"ID_EXISTENTE"}' localhost:4001 biblioteca.LibrosService/ObtenerLibro
 ```
 
-### 3) Segundo transporte: RabbitMQ
+### 4) RabbitMQ
 
 Se agregó un flujo asíncrono adicional para auditoría:
 
@@ -505,13 +505,13 @@ Préstamos -> RabbitMQ queue: prestamo.auditoria -> Gateway
 
 El microservicio Préstamos publica el evento `prestamo.auditoria` después de registrar un préstamo real. El Gateway lo consume y registra la auditoría sin bloquear el flujo principal. Si la publicación a RabbitMQ falla, Préstamos captura el error, lo registra y continúa con la operación principal para no tumbar el servicio.
 
-### 4) Manejo de excepciones
+### 5) Manejo de excepciones
 
 - En `LibrosService.obtenerLibroGrpc(...)` se controla el caso de libro inexistente y se traduce a `RpcException`.
 - En `GatewayService.obtenerLibroGrpc(...)` se convierte el error gRPC a `HttpException` para devolver un estado HTTP claro.
 - En `PrestamosService.create(...)` la publicación a RabbitMQ está envuelta en `try/catch`; si el broker falla, la reserva del préstamo sigue y el servicio no cae.
 
-### 5) Comparación de transportes
+### 6) Comparación de transportes
 
 | Transporte | Tipo | Patrón | Uso en el proyecto |
 |---|---|---|---|
@@ -522,7 +522,7 @@ El microservicio Préstamos publica el evento `prestamo.auditoria` después de r
 
 TCP conviene cuando necesito respuesta inmediata y control del flujo, como verificar disponibilidad antes de registrar un préstamo. Redis funciona bien para eventos livianos y desacoplados. RabbitMQ es más apropiado cuando quiero una cola más explícita para auditoría o trabajos asíncronos que deben quedar en espera. gRPC encaja cuando necesito un contrato fuerte, tipado y rápido entre servicios, sin perder la semántica de RPC.
 
-### 6) Evidencias del Avance 2
+### 7) Evidencias del Avance 2
 
 
 #### Crear libro (Postman)
