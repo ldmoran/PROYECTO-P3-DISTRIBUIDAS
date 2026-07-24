@@ -28,6 +28,18 @@ export class NotificacionesService {
       prestamoId: payload.prestamoId,
       mensaje,
     });
-    return this.notificacionRepository.save(notificacion);
+
+    try {
+      return await this.notificacionRepository.save(notificacion);
+    } catch (error) {
+      // Este evento viene de Redis Pub/Sub sin canal de respuesta: si no lo
+      // registramos aquí, un fallo al guardar la notificación se pierde en
+      // silencio y nadie se entera de que el préstamo quedó sin notificar.
+      this.logger.error(
+        `No se pudo guardar la notificación del préstamo ${payload.prestamoId}: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      throw error;
+    }
   }
 }

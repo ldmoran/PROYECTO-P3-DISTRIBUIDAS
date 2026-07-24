@@ -27,7 +27,7 @@
 
 ![Arquitectura v1](docs/evidencias/Diagrama/arquitectura-v1.png)
 
-- [ ] Tag `v1-avance1`
+- [x] Tag `v1-avance1` (tag anotado real: `git tag -a v1-avance1 a17c1ad`)
 
 ### 🟡 Avance 2 — `avance-2`
 - [ ] Definir contrato `.proto` (gRPC) entre dos microservicios
@@ -37,7 +37,7 @@
 - [ ] Demostrar error controlado sin caída del servicio
 - [ ] Tabla comparativa de transportes
 - [ ] Diagrama actualizado + README Avance 2
-- [ ] Tag `v2-avance2`
+- [x] Tag `v2-avance2` (tag anotado real: `git tag -a v2-avance2 c4a87a0`)
 
 ### 🔵 Avance 3 — `avance-3`
 - [ ] Login que emite token JWT
