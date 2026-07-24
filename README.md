@@ -9,7 +9,7 @@
 | David Moran | Backend / Arquitectura | @ldmoran |
 | Gabriel Vivanco | Transportes / gRPC | @usuario |
 | Alison Miranda | Seguridad / Observabilidad | @usuario |
-| Samir Mideros | Documentación / QA | @usuario |
+| Samir Mideros | Documentación / QA | @esmid17 |
 
 ## 🧩 Descripción del MVP
 
