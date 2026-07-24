@@ -30,13 +30,13 @@
 - [x] Tag `v1-avance1` (tag anotado real: `git tag -a v1-avance1 a17c1ad`)
 
 ### 🟡 Avance 2 — `avance-2`
-- [ ] Definir contrato `.proto` (gRPC) entre dos microservicios
-- [ ] Implementar comunicación gRPC en el monorepo
-- [ ] try/catch para controlar errores en gRPC
-- [ ] Agregar segundo transporte (RabbitMQ/MQTT/NATS) con PUB/SUB o queue
-- [ ] Demostrar error controlado sin caída del servicio
-- [ ] Tabla comparativa de transportes
-- [ ] Diagrama actualizado + README Avance 2
+- [x] Definir contrato `.proto` (gRPC) entre dos microservicios
+- [x] Implementar comunicación gRPC en el monorepo
+- [x] try/catch para controlar errores en gRPC
+- [x] Agregar segundo transporte (RabbitMQ/MQTT/NATS) con PUB/SUB o queue
+- [x] Demostrar error controlado sin caída del servicio
+- [x] Tabla comparativa de transportes
+- [x] Diagrama actualizado + README Avance 2
 - [x] Tag `v2-avance2` (tag anotado real: `git tag -a v2-avance2 c4a87a0`)
 
 ### 🔵 Avance 3 — `avance-3`

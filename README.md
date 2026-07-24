@@ -30,7 +30,7 @@ El dominio se mantiene deliberadamente sencillo (3 entidades: Libro, Préstamo, 
 - **Contenedores:** Docker Compose · **Estructura:** monorepo (apps/)
 - **Control de versiones:** Git + GitHub (GitHub Flow)
 
-> Este avance **no incluye** gRPC, JWT, RabbitMQ/MQTT/NATS ni Sentry — esos temas corresponden a los Avances 2 y 3.
+> El Avance 1 conservó TCP y Redis. En el Avance 2 se agregan gRPC y RabbitMQ; JWT y Sentry corresponden al Avance 3.
 
 ## ▶️ Ejecución del proyecto
 
@@ -492,7 +492,7 @@ message LibroResponse {
 Ejemplo de prueba con `grpcurl`:
 
 ```bash
-grpcurl -plaintext -proto proto/libros.proto -d '{"id":"ID_EXISTENTE"}' localhost:4001 biblioteca.LibrosService/ObtenerLibro
+grpcurl -plaintext -proto proto/libros.proto -d '{"id":"ID_EXISTENTE"}' localhost:5000 biblioteca.LibrosService/ObtenerLibro
 ```
 
 ### 4) RabbitMQ
