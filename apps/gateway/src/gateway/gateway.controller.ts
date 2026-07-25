@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Logger } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { GatewayService } from './gateway.service';
+import { AuditoriaConsumerService } from './auditoria-consumer.service';
 import { CreateLibroDto } from '../common/dto/create-libro.dto';
 import { UpdateLibroDto } from '../common/dto/update-libro.dto';
 import { CreatePrestamoDto } from '../common/dto/create-prestamo.dto';
@@ -8,9 +9,10 @@ import { TestSyncDto } from '../common/dto/test-sync.dto';
 
 @Controller('api')
 export class GatewayController {
-  private readonly logger = new Logger(GatewayController.name);
-
-  constructor(private readonly gatewayService: GatewayService) {}
+  constructor(
+    private readonly gatewayService: GatewayService,
+    private readonly auditoriaConsumerService: AuditoriaConsumerService,
+  ) {}
 
   // ---- Libros ----
   @Post('libros')
@@ -77,7 +79,6 @@ export class GatewayController {
 
   @EventPattern('prestamo.auditoria')
   handlePrestamoAuditoria(@Payload() payload: any) {
-    this.logger.log(`Evento RabbitMQ 'prestamo.auditoria' recibido: ${JSON.stringify(payload)}`);
-    return this.gatewayService.registrarPrestamoAuditoria(payload);
+    void this.auditoriaConsumerService.handlePrestamoAuditoria(payload);
   }
 }

@@ -159,7 +159,7 @@ Cada servicio dentro de `apps/` es un proyecto NestJS **independiente** (su prop
 
 ### 📈 Latencia (con benchmark.js)
 
-Se realizaron 50 peticiones para comparar el comportamiento del camino síncrono (Gateway → Préstamos → Libros mediante TCP) frente al camino asíncrono (Préstamos → Redis → Notificaciones).
+Se realizaron 50 peticiones seriales por camino para comparar el comportamiento de dos rutas que parten del Gateway. El camino síncrono mide la cadena HTTP → Gateway → Préstamos → Libros mediante TCP y espera la respuesta de Libros. El camino asíncrono mide HTTP → Gateway → Préstamos → Redis; Préstamos publica el evento y no espera a que Notificaciones lo procese.
 
 | Comunicación | Promedio (ms) | P95 (ms) | Máximo (ms) |
 |---|---:|---:|---:|
@@ -170,6 +170,8 @@ Resultados:
 
 - La comunicación asíncrona presentó menor latencia debido a que el servicio de préstamos no espera la respuesta del consumidor del evento.
 - La comunicación síncrona tiene mayor tiempo de respuesta porque requiere esperar la consulta TCP al microservicio Libros.
+- La comparación no mide únicamente TCP contra Redis: ambos tiempos incluyen el salto HTTP → Gateway → Préstamos; la diferencia es el salto adicional síncrono hacia Libros frente a la publicación asíncrona en Redis.
+- Se conservaron las 50 iteraciones válidas de cada camino y no se descartaron muestras de calentamiento. Por ello, los valores reportados son una medición observada del entorno de ejecución y no una estimación aislada del costo en régimen estable.
 
 ![alt text](docs/evidencias/benchmark-latencia.png)
 

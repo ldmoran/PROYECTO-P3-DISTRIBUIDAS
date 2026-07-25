@@ -44,8 +44,11 @@ import { Prestamo } from './entities/prestamo.entity';
             urls: [config.get<string>('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq:5672')],
             queue: 'prestamo.auditoria',
             queueOptions: {
-              durable: false,
+              durable: true,
+              autoDelete: false,
             },
+            noAck: true,
+            prefetchCount: 1,
           },
         }),
       },

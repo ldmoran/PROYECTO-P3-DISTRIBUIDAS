@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { join } from 'path';
 import { GatewayController } from './gateway.controller';
 import { GatewayService } from './gateway.service';
+import { AuditoriaConsumerService } from './auditoria-consumer.service';
 
 @Module({
   imports: [
@@ -48,6 +49,6 @@ import { GatewayService } from './gateway.service';
     ]),
   ],
   controllers: [GatewayController],
-  providers: [GatewayService],
+  providers: [GatewayService, AuditoriaConsumerService],
 })
 export class GatewayModule {}
