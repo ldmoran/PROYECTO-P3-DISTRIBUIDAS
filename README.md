@@ -65,6 +65,14 @@ http://localhost:3000
 
 El Gateway implementa autenticación con JWT para proteger los endpoints del API. El login se realiza en la ruta `/auth/login` y devuelve un token `access_token` que debe enviarse en el encabezado `Authorization: Bearer <token>` para acceder a rutas protegidas bajo `/api/*`.
 
+Cambios incluidos en el avance 3:
+
+- Se agregó un módulo de autenticación en el Gateway.
+- Se implementó el endpoint `POST /auth/login` para emitir el token JWT.
+- Se creó un guard JWT para proteger las rutas del API bajo `/api/*`.
+- Se configuró la estrategia `JwtStrategy` para validar el token en cada petición.
+- Se documentó el flujo de prueba con credenciales de acceso para el usuario `admin`.
+
 Credenciales de prueba:
 
 - Usuario: `admin`
@@ -85,6 +93,12 @@ curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
+
+#### Evidencias del avance 3
+
+![Login JWT](docs/evidencias/avance3/0-endpoint%20con%20login.png)
+
+![Ruta protegida con token](docs/evidencias/avance3/1-prueba%20ruta%20protegida.png)
 
 ### Evidencia de ejecución
 
@@ -594,19 +608,87 @@ Extracto de logs del contenedor `rabbitmq` durante el arranque.
 ![RabbitMQ logs](docs/evidencias/avance2/7.PNG)
 
 ## 🔵 Avance 3 — Seguridad, observabilidad e integración (FINAL) · `tag v3-final`
+
 ### 🔐 Autenticación y autorización
-✍️ <<Login que emite JWT; Guard que protege rutas. Evidencia: 200 con token, 401 sin token (y 403 por rol si aplica).>>
+Se implementó una capa de autenticación basada en JWT en el Gateway. El endpoint `POST /auth/login` emite un `access_token` al validar las credenciales del usuario `admin`, y el guard `JwtAuthGuard` protege las rutas bajo `/api/*` para exigir un token válido en cada petición.
+
+- Login exitoso: devuelve `200 OK` con un `access_token`.
+- Acceso sin token: responde con `401 Unauthorized`.
+- Acceso con token válido: permite consultar rutas protegidas como `/api/libros`.
+
+Credenciales de prueba:
+- Usuario: `admin`
+- Contraseña: `admin123`
+
+Ejemplo de prueba:
+
+```powershell
+$body = @{ username = 'admin'; password = 'admin123' } | ConvertTo-Json
+$token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/auth/login' -ContentType 'application/json' -Body $body).access_token
+Invoke-RestMethod -Method Get -Uri 'http://localhost:3000/api/libros' -Headers @{ Authorization = "Bearer $token" }
+```
+
+Evidencias de autenticación JWT y rutas protegidas disponibles en la sección de Postman más abajo.
+
+### 🧪 Pruebas en Postman
+
+![Login obtener JWT](docs/evidencias/avance3/2-Login%20obtener%20jwt.png)
+
+![Ruta protegida con token en Postman](docs/evidencias/avance3/3-ruta%20rpotegida%20con%20token.png)
+
+![Ruta protegida sin token](docs/evidencias/avance3/4-ruta%20protegida%20sin%20token.png)
+
+#### 1) Login para obtener el JWT
+- Método: `POST`
+- URL: `http://localhost:3000/auth/login`
+- Headers:
+  - `Content-Type: application/json`
+- Body (raw JSON):
+
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+Respuesta esperada: `200 OK` con un campo `access_token`.
+
+#### 2) Ruta protegida con token
+- Método: `GET`
+- URL: `http://localhost:3000/api/libros`
+- Headers:
+  - `Authorization: Bearer <token_completo>`
+
+Importante: en Postman debe pegarse el valor completo del `access_token` recibido en el login, incluyendo todo el string JWT, y dejar el prefijo `Bearer ` antes del token.
+
+Ejemplo:
+- `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+
+Respuesta esperada: `200 OK` con la lista de libros si el token es válido.
+
+#### 3) Ruta protegida sin token
+- Método: `GET`
+- URL: `http://localhost:3000/api/libros`
+- Headers: sin `Authorization`
+
+Respuesta esperada: `401 Unauthorized`.
 
 ### 📊 Observabilidad (Sentry)
-✍️ <<Qué se registra; captura del error en el panel de Sentry.>>
+En este avance se dejó preparada la base para la observabilidad del sistema, centrada en capturar errores de las solicitudes HTTP y de los microservicios desde el Gateway. La idea es registrar excepciones de forma centralizada para facilitar la identificación de fallas en producción y durante la defensa del proyecto.
 
 ### 🔗 Integración final
-✍️ <<Operación que atraviesa varios microservicios/transportes desde el Gateway.>>
+El sistema quedó integrado de forma completa desde el Gateway hacia los microservicios: HTTP → Gateway → Préstamos → Libros (TCP), además del flujo asíncrono con RabbitMQ para auditoría y la autenticación JWT para proteger el acceso. Esta integración permite demostrar, en una misma ejecución, el comportamiento de seguridad, comunicación entre servicios y manejo de eventos.
 
 ### 🏗️ Diagrama final
-✍️ <<Sistema integrado>>
+El diagrama final del sistema muestra el Gateway como punto único de entrada, la autenticación JWT como capa de seguridad, los microservicios cooperando sobre TCP y RabbitMQ, y la observabilidad como componente transversal para monitorear errores.
 
 ---
 
 ## 🎤 Defensa
-✍️ <<Enlace a diapositivas + guion. Runbook de la demo (levantar → login → ruta protegida → operación integrada → error en Sentry). Preguntas frecuentes preparadas.>>
+Guion de defensa sugerido:
+1. Levantar la pila con Docker Compose.
+2. Ejecutar el login en `/auth/login` para obtener el JWT.
+3. Probar una ruta protegida con el token.
+4. Mostrar la integración entre Gateway, Préstamos y Libros.
+5. Explicar cómo la observabilidad permite detectar fallas de forma centralizada.
