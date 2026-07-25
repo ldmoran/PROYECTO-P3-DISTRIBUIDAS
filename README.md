@@ -77,6 +77,8 @@ Credenciales de prueba:
 
 - Usuario: `admin`
 - Contraseña: `admin123`
+- Usuario: `guest`
+- Contraseña: `guest123`
 
 Ejemplo con PowerShell:
 
