@@ -616,11 +616,14 @@ Se implementó una capa de autenticación basada en JWT en el Gateway. El endpoi
 
 - Login exitoso: devuelve `200 OK` con un `access_token`.
 - Acceso sin token: responde con `401 Unauthorized`.
-- Acceso con token válido: permite consultar rutas protegidas como `/api/libros`.
+- Acceso con token válido sin rol adecuado: responde con `403 Forbidden`.
+- Acceso con token válido y rol `admin`: permite consultar rutas protegidas como `/api/libros`.
 
 Credenciales de prueba:
 - Usuario: `admin`
 - Contraseña: `admin123`
+- Usuario: `guest`
+- Contraseña: `guest123`
 
 Ejemplo de prueba:
 
@@ -637,6 +640,8 @@ Evidencias de autenticación JWT y rutas protegidas disponibles en la sección d
 ![Login obtener JWT](docs/evidencias/avance3/2-Login%20obtener%20jwt.png)
 
 ![Ruta protegida con token en Postman](docs/evidencias/avance3/3-ruta%20rpotegida%20con%20token.png)
+
+![Error 403 por rol inválido](docs/evidencias/avance3/5-%20error403.png)
 
 ![Ruta protegida sin token](docs/evidencias/avance3/4-ruta%20protegida%20sin%20token.png)
 
