@@ -5,6 +5,7 @@ import { join } from 'path';
 import { GatewayController } from './gateway.controller';
 import { GatewayService } from './gateway.service';
 import { AuditoriaConsumerService } from './auditoria-consumer.service';
+import { RolesGuard } from '../auth/roles.guard';
 
 @Module({
   imports: [
@@ -49,6 +50,6 @@ import { AuditoriaConsumerService } from './auditoria-consumer.service';
     ]),
   ],
   controllers: [GatewayController],
-  providers: [GatewayService, AuditoriaConsumerService],
+  providers: [GatewayService, AuditoriaConsumerService, RolesGuard],
 })
 export class GatewayModule {}
