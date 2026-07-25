@@ -61,6 +61,31 @@ docker compose ps
 http://localhost:3000
 ```
 
+### Autenticación JWT
+
+El Gateway implementa autenticación con JWT para proteger los endpoints del API. El login se realiza en la ruta `/auth/login` y devuelve un token `access_token` que debe enviarse en el encabezado `Authorization: Bearer <token>` para acceder a rutas protegidas bajo `/api/*`.
+
+Credenciales de prueba:
+
+- Usuario: `admin`
+- Contraseña: `admin123`
+
+Ejemplo con PowerShell:
+
+```powershell
+$body = @{ username = 'admin'; password = 'admin123' } | ConvertTo-Json
+$token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/auth/login' -ContentType 'application/json' -Body $body).access_token
+Invoke-RestMethod -Method Get -Uri 'http://localhost:3000/api/libros' -Headers @{ Authorization = "Bearer $token" }
+```
+
+Ejemplo con curl:
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
 ### Evidencia de ejecución
 
 La siguiente captura muestra que todos los contenedores fueron creados e iniciados correctamente mediante Docker Compose.
@@ -123,6 +148,7 @@ Cada microservicio posee una única responsabilidad:
 - Préstamos gestiona el registro de préstamos.
 - Notificaciones procesa los eventos publicados.
 - Gateway centraliza el acceso de los clientes.
+
 
 ### Principio DIP (Dependency Inversion Principle)
 

@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GatewayService } from './gateway.service';
 import { AuditoriaConsumerService } from './auditoria-consumer.service';
 import { CreateLibroDto } from '../common/dto/create-libro.dto';
@@ -8,6 +9,7 @@ import { CreatePrestamoDto } from '../common/dto/create-prestamo.dto';
 import { TestSyncDto } from '../common/dto/test-sync.dto';
 
 @Controller('api')
+@UseGuards(JwtAuthGuard)
 export class GatewayController {
   constructor(
     private readonly gatewayService: GatewayService,
