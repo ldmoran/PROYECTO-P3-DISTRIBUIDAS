@@ -10,11 +10,11 @@
 
 | | |
 |---|---|
-| **Nombre** | |
-| **Usuario GitHub** | @ |
-| **Grupo / Proyecto** | |
-| **Actividad asignada** | *(letra y nombre, tal como aparece en `ASIGNACION.md`)* |
-| **Rama** | `exam/` |
+| **Nombre** | Alison Miranda|
+| **Usuario GitHub** | @alisonmiranda |
+| **Grupo / Proyecto** | Grupo 5 — Biblioteca (P3-Distribuidas)|
+| **Actividad asignada** | F - Resiliencia: timeout + reintento |
+| **Rama** | `exam/alisonmiranda` |
 | **Tag** | `examen-` |
 | **Pull Request** | *(enlace)* |
 | **Tarjeta Kanban** | *(enlace)* |

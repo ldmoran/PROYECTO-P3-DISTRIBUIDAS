@@ -1,6 +1,8 @@
 import { HttpException, HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientGrpc, ClientProxy } from '@nestjs/microservices';
-import { catchError, firstValueFrom, throwError } from 'rxjs';
+import { catchError, firstValueFrom, mergeMap, retryWhen, throwError, timeout, timer } from 'rxjs';
+
+const GRPC_TIMEOUT_MS = 2000;
 
 interface LibroGrpcResponse {
   id: string;
@@ -57,9 +59,45 @@ export class GatewayService implements OnModuleInit {
 
   async obtenerLibroGrpc(id: string) {
     try {
-      return await firstValueFrom(this.librosGrpcService.obtenerLibro({ id }));
+      const grpcCall$ = this.librosGrpcService.obtenerLibro({ id }).pipe(
+        timeout(GRPC_TIMEOUT_MS),
+        retryWhen((errors) =>
+          errors.pipe(
+            mergeMap((error, attempt) => {
+              if (error?.code === 5) {
+                return throwError(() => error);
+              }
+
+              if (attempt >= 2) {
+                return throwError(() => error);
+              }
+
+              const delayMs = attempt === 0 ? 100 : 300;
+              return timer(delayMs);
+            }),
+          ),
+        ),
+      );
+
+      return await firstValueFrom(grpcCall$);
     } catch (error) {
-      const status = error?.code === 5 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+      if (error?.code === 5) {
+        const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
+        throw new HttpException(message, HttpStatus.NOT_FOUND);
+      }
+
+      const isTimeoutError =
+        error instanceof Error &&
+        (error.name === 'TimeoutError' || error.message?.includes('timeout') || error.message?.includes('Timeout'));
+      const isConnectionError =
+        error instanceof Error &&
+        /connect|disconnect|econnrefused|socket hang up|ECONN|ENOTFOUND|unavailable/i.test(error.message ?? '');
+
+      if (isTimeoutError || isConnectionError) {
+        throw new HttpException('Servicio de libros no disponible tras reintentos', HttpStatus.SERVICE_UNAVAILABLE);
+      }
+
+      const status = HttpStatus.BAD_GATEWAY;
       const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
       throw new HttpException(message, status);
     }
