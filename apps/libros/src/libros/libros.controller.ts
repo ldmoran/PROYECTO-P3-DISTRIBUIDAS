@@ -28,6 +28,11 @@ export class LibrosController {
     return this.librosService.obtenerLibroGrpc(data.id);
   }
 
+  @GrpcMethod('LibrosService', 'VerificarDisponibilidad')
+  verificarDisponibilidadGrpc(@Payload() data: { id: string }) {
+    return this.librosService.verificarDisponibilidadGrpc(data.id);
+  }
+
   @MessagePattern('libros.update')
   update(@Payload() payload: { id: string; dto: UpdateLibroDto }) {
     return this.librosService.update(payload.id, payload.dto);
