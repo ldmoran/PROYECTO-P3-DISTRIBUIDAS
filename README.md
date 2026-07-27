@@ -823,3 +823,13 @@ La comparación con números reales (no solo teoría) fue lo que mejor evidenci�
 - **¿En qué se diferencian los transportes usados?** TCP: síncrono petición-respuesta sin contrato fuerte. Redis Pub/Sub: asíncrono, sin acuse de recibo, para eventos livianos. RabbitMQ: asíncrono con cola durable, apto para auditoría que no debe perderse. gRPC: síncrono con contrato `.proto` tipado.
 - **¿Para qué sirve Sentry y qué registran ahí?** Centralizar errores no manejados de los 4 servicios con su stack trace, `release` y ambiente, para diagnosticar fallas sin depender de revisar logs de cada contenedor por separado.
 - **¿Qué patrones de diseño usa NestJS y cuáles agregaron ustedes?** NestJS ya trae Dependency Injection y Módulos; el equipo aplicó además API Gateway, Publisher/Subscriber (Redis) y Repository (TypeORM) sobre esa base.
+
+## 🎓 Examen final
+
+Cierre individual del Proyecto Integrador: cada integrante añade, en su propia rama (`exam/<usuario>`), una pieza distinta al sistema ya construido en los Avances 1-3.
+
+### Examen final — Gabriel Vivanco
+
+Actividad B — Nuevo salto síncrono con contrato: extendí el contrato gRPC (`proto/libros.proto`) con el método `VerificarDisponibilidad`, lo implementé en el microservicio Libros reutilizando la lógica de negocio existente, y lo consumí desde el Gateway (`GET /api/libros/grpc/:id/disponibilidad`) traduciendo los errores del contrato a los códigos HTTP correctos (404/400) en vez de un 502 genérico.
+
+Bitácora completa (decisiones, anclaje con el código preexistente, evidencia y uso de IA declarado): [`docs/examen/GabrielVivanco/BITACORA.md`](docs/examen/GabrielVivanco/BITACORA.md).
