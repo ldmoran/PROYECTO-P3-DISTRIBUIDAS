@@ -33,10 +33,44 @@ export class GatewayService implements OnModuleInit {
     return firstValueFrom(
       client.send<T>(pattern, data).pipe(
         catchError((err) => {
-          this.logger.error({ err }, `Error recibido del microservicio para patrón ${pattern}`);
-          const payload = typeof err === 'object' && err !== null ? err.response ?? err : null;
-          const status = payload?.statusCode ?? payload?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
-          const message = payload?.message ?? payload?.error ?? String(err ?? 'Error de comunicación con el microservicio');
+          const payload = (() => {
+            if (typeof err !== 'object' || err === null) {
+              return null;
+            }
+            if ('response' in err && err.response != null) {
+              return err.response;
+            }
+            if ('error' in err && err.error != null) {
+              return err.error;
+            }
+            if (typeof err.error === 'object' && err.error !== null) {
+              const nestedError = err.error;
+              if ('response' in nestedError && nestedError.response != null) {
+                return nestedError.response;
+              }
+              if ('error' in nestedError && nestedError.error != null) {
+                return nestedError.error;
+              }
+            }
+            return err;
+          })();
+          const rawStatus = payload?.statusCode ?? payload?.status ?? payload?.code;
+          const status =
+            typeof rawStatus === 'number' && Number.isInteger(rawStatus)
+              ? rawStatus
+              : typeof rawStatus === 'string' && /^\d+$/.test(rawStatus)
+              ? Number.parseInt(rawStatus, 10)
+              : HttpStatus.INTERNAL_SERVER_ERROR;
+          const message =
+            Array.isArray(payload?.message)
+              ? payload.message.join(', ')
+              : payload?.message ??
+                (typeof payload?.error === 'string'
+                  ? payload.error
+                  : typeof err === 'string'
+                  ? err
+                  : String((err as any)?.message ?? 'Error de comunicación con el microservicio'));
+          this.logger.error({ err, payload, status }, `Error recibido del microservicio para patrón ${pattern}`);
           return throwError(() => new HttpException({ statusCode: status, message }, status));
         }),
       ),
