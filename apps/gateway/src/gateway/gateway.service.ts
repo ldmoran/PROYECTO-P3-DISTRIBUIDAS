@@ -33,12 +33,11 @@ export class GatewayService implements OnModuleInit {
     return firstValueFrom(
       client.send<T>(pattern, data).pipe(
         catchError((err) => {
-          // Si el microservicio está caído, aquí es donde se ve el
-          // acoplamiento temporal: la promesa se rechaza y el Gateway
-          // responde con un error al cliente en vez de colgarse.
-          const status = err?.statusCode ?? HttpStatus.INTERNAL_SERVER_ERROR;
-          const message = err?.message ?? 'Error de comunicación con el microservicio';
-          return throwError(() => new HttpException(message, status));
+          this.logger.error({ err }, `Error recibido del microservicio para patrón ${pattern}`);
+          const payload = typeof err === 'object' && err !== null ? err.response ?? err : null;
+          const status = payload?.statusCode ?? payload?.status ?? HttpStatus.INTERNAL_SERVER_ERROR;
+          const message = payload?.message ?? payload?.error ?? String(err ?? 'Error de comunicación con el microservicio');
+          return throwError(() => new HttpException({ statusCode: status, message }, status));
         }),
       ),
     );
