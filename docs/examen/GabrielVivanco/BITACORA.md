@@ -11,8 +11,8 @@
 | **Grupo / Proyecto** | Grupo 5 — Biblioteca (`ldmoran/PROYECTO-P3-DISTRIBUIDAS`) |
 | **Actividad asignada** | B — Nuevo salto síncrono con contrato (gRPC), según `docs/examen/GabrielVivanco/ASIGNACION.md` |
 | **Rama** | `exam/GabrielNicoasVivancoRaza` |
-| **Tag** | `examen-GabrielNicoasVivancoRaza` *(pendiente de crear al cierre, sobre el último commit)* |
-| **Pull Request** | *(pendiente — completar con el enlace al abrir el PR)* |
+| **Tag** | `examen-GabrielNicoasVivancoRaza` (sobre `4f868c8`, publicado en origin) |
+| **Pull Request** | https://github.com/ldmoran/PROYECTO-P3-DISTRIBUIDAS/pull/7 |
 | **Tarjeta Kanban** | `TABLERO_KANBAN.md`, sección "Examen final — Gabriel Vivanco (Actividad B)" (tablero Markdown, ver §5 sobre por qué no se usó GitHub Projects) |
 | **¿Hiciste el Paso 0?** | No — el repo ya tenía login JWT y guard funcionando desde el Avance 3 (`apps/gateway/src/auth/jwt-auth.guard.ts`, `apps/gateway/src/auth/auth.service.ts`, documentado en `README.md:33`)|
 
@@ -158,7 +158,7 @@ Tests:       3 passed, 3 total
 
 ---
 
-## 8. Estado final — honesto
+## 8. Estado final 
 
 **Funciona:** el rpc `VerificarDisponibilidad` end-to-end (Gateway → gRPC → Libros → Postgres), el mapeo 404/400/401, la ruta vieja `ObtenerLibro` sin regresión, y la prueba automatizada verificada fallando antes y pasando después.
 

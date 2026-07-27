@@ -73,4 +73,4 @@
 
 | Estado | Tarjeta | Responsable | Actividad | Enlace PR |
 |---|---|---|---|---|
-| 🔵 En progreso | Examen final — Nuevo salto síncrono con contrato (gRPC) | Gabriel Vivanco (@GabrielNicoasVivancoRaza) | **B** | *(pendiente)* |
+| 🟢 Hecho | Examen final — Nuevo salto síncrono con contrato (gRPC) | Gabriel Vivanco (@GabrielNicoasVivancoRaza) | **B** | https://github.com/ldmoran/PROYECTO-P3-DISTRIBUIDAS/pull/7 |
