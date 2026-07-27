@@ -55,15 +55,14 @@ No creé un segundo cliente gRPC ni un módulo de configuración paralelo: reuti
 *Al menos dos decisiones reales, con la alternativa que descartaste y por qué. Una decisión sin alternativa descartada no es una decisión.*
 
 ### Decisión 1
-- **Qué decidí:**
-- **Alternativa que descarté:**
-- **Por qué:**
+- **Qué decidí:** Mantener el cambio dentro del mismo método `obtenerLibroGrpc` del Gateway y aplicar `timeout` + `retryWhen` directamente sobre la llamada gRPC existente.
+- **Alternativa que descarté:** Crear un servicio o helper nuevo para encapsular la resiliencia, o modificar el controller para agregar lógica extra.
+- **Por qué:** Quería respetar la arquitectura del proyecto, reutilizar el cliente gRPC ya inyectado en el Gateway y no introducir una capa paralela que complicara el flujo.
 
 ### Decisión 2
-- **Qué decidí:**
-- **Alternativa que descarté:**
-- **Por qué:**
-
+- **Qué decidí:** Separar los casos de error en 404, 502 y 503 dentro del mismo `catch`, para que el comportamiento del Gateway siga siendo claro y estable.
+- **Alternativa que descarté:** Devolver siempre un 502 o un error genérico para cualquier fallo, o crear un bloque de manejo de errores distinto en otro archivo.
+- **Por qué:** El sistema ya tenía un comportamiento específico para “libro no encontrado” y quería preservar ese 404, mientras que el timeout/reintento debía terminar en un 503 controlado cuando el servicio de Libros no responde. 
 ---
 
 ## 4. Las 3 preguntas de mi actividad
