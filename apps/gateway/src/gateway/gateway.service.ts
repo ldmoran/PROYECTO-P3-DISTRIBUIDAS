@@ -12,6 +12,9 @@ interface LibroGrpcResponse {
 
 interface LibroGrpcService {
   obtenerLibro(data: { id: string }): import('rxjs').Observable<LibroGrpcResponse>;
+  verificarDisponibilidad(data: {
+    id: string;
+  }): import('rxjs').Observable<{ id: string; disponible: boolean }>;
 }
 
 @Injectable()
@@ -60,6 +63,24 @@ export class GatewayService implements OnModuleInit {
       return await firstValueFrom(this.librosGrpcService.obtenerLibro({ id }));
     } catch (error) {
       const status = error?.code === 5 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+      const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
+      throw new HttpException(message, status);
+    }
+  }
+  async verificarDisponibilidadGrpc(id: string) {
+    try {
+      return await firstValueFrom(this.librosGrpcService.verificarDisponibilidad({ id }));
+    } catch (error) {
+      // Mismo mapeo por codigo gRPC que obtenerLibroGrpc, ademas de
+      // INVALID_ARGUMENT (3) para el id vacio: sin este catch, un id
+      // invalido o un libro inexistente colgarian al consumidor con un
+      // 502 generico en vez de un codigo controlado.
+      let status = HttpStatus.BAD_GATEWAY;
+      if (error?.code === 5) {
+        status = HttpStatus.NOT_FOUND;
+      } else if (error?.code === 3) {
+        status = HttpStatus.BAD_REQUEST;
+      }
       const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
       throw new HttpException(message, status);
     }

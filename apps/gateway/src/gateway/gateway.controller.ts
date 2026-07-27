@@ -40,6 +40,11 @@ export class GatewayController {
     return this.gatewayService.obtenerLibroGrpc(id);
   }
 
+  @Get('libros/grpc/:id/disponibilidad')
+  verificarDisponibilidadGrpc(@Param('id') id: string) {
+    return this.gatewayService.verificarDisponibilidadGrpc(id);
+  }
+
   @Patch('libros/:id')
   actualizarLibro(@Param('id') id: string, @Body() dto: UpdateLibroDto) {
     return this.gatewayService.actualizarLibro(id, dto);

@@ -4,6 +4,7 @@ package biblioteca;
 
 service LibrosService {
   rpc ObtenerLibro (LibroRequest) returns (LibroResponse);
+  rpc VerificarDisponibilidad (LibroRequest) returns (DisponibilidadResponse);
 }
 
 message LibroRequest {
@@ -16,4 +17,9 @@ message LibroResponse {
   string autor = 3;
   string isbn = 4;
   bool disponible = 5;
+}
+
+message DisponibilidadResponse {
+  string id = 1;
+  bool disponible = 2;
 }

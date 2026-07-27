@@ -64,3 +64,13 @@
 | ... | ... | ... | ... | Benchmark de latencia |
 | ... | ... | ... | ... | Prueba de acoplamiento temporal |
 | ... | ... | ... | ... | Diagrama de arquitectura v1 |
+
+---
+
+## Examen final — Gabriel Vivanco (Actividad B)
+
+> No se usa GitHub Projects para esta tarjeta: el repo no tiene la pestaña Projects habilitada (sin permiso para crear uno nuevo). Se usa el tablero Markdown de este archivo como fallback, tal como prevé la nota de la línea 9.
+
+| Estado | Tarjeta | Responsable | Actividad | Enlace PR |
+|---|---|---|---|---|
+| 🔵 En progreso | Examen final — Nuevo salto síncrono con contrato (gRPC) | Gabriel Vivanco (@GabrielNicoasVivancoRaza) | **B** | *(pendiente)* |

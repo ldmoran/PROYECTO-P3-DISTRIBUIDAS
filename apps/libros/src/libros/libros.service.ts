@@ -67,6 +67,28 @@ export class LibrosService {
     }
   }
 
+  async verificarDisponibilidadGrpc(id: string) {
+    if (!id?.trim()) {
+      throw new RpcException({
+        code: GrpcStatus.INVALID_ARGUMENT,
+        message: 'El id del libro es obligatorio',
+      });
+    }
+    try {
+      return await this.verificarDisponibilidad(id);
+    } catch (error) {
+      // Mismo motivo que en obtenerLibroGrpc: gRPC traduce por `code`
+      // numerico, no por `statusCode` HTTP.
+      if (error instanceof NotFoundException) {
+        throw new RpcException({ code: GrpcStatus.NOT_FOUND, message: error.message });
+      }
+      throw new RpcException({
+        code: GrpcStatus.INTERNAL,
+        message: (error as Error)?.message ?? 'Error verificando disponibilidad por gRPC',
+      });
+    }
+  }
+
   async marcarComoPrestado(id: string) {
     const libro = await this.findOne(id);
     libro.disponible = false;
