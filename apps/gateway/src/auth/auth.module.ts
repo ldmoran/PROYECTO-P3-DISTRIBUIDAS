@@ -16,7 +16,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET', 'biblioteca-secret'),
-        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '1h') },
+        // @nestjs/jwt tipa expiresIn como number | StringValue (paquete `ms`),
+        // no como string genérico; la variable de entorno solo puede tipar string.
+        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '1h') as any },
       }),
     }),
   ],
