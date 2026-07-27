@@ -40,14 +40,14 @@
 - [x] Tag `v2-avance2` (tag anotado real: `git tag -a v2-avance2 c4a87a0`)
 
 ### 🔵 Avance 3 — `avance-3`
-- [ ] Login que emite token JWT
-- [ ] Validación del JWT en las rutas
-- [ ] Guard que protege rutas (401 sin token; 403 por rol si aplica)
-- [ ] Integrar logs con Sentry (capturar errores)
-- [ ] Integrar todos los microservicios/transportes en una operación
-- [ ] Diagrama final + README Avance 3 + sección Defensa
+- [x] Login que emite token JWT (`POST /auth/login` en el Gateway)
+- [x] Validación del JWT en las rutas (`JwtStrategy` + `JwtAuthGuard`)
+- [x] Guard que protege rutas (401 sin token; 403 sin el rol `admin` vía `RolesGuard`)
+- [x] Integrar logs con Sentry (capturar errores) en los 4 servicios
+- [x] Integrar todos los microservicios/transportes en una operación (`docker-compose.final.yml` corregido para levantar los servicios reales)
+- [x] Diagrama final + README Avance 3 + sección Defensa
 - [ ] Preparar diapositivas y ensayar demo
-- [ ] Tag `v3-final`
+- [ ] Tag `v3-final` (se crea con `git tag -a` una vez fusionado a `main`)
 
 ---
 
