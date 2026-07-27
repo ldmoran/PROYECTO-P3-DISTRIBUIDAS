@@ -47,7 +47,7 @@
 - [x] Integrar todos los microservicios/transportes en una operación (`docker-compose.final.yml` corregido para levantar los servicios reales)
 - [x] Diagrama final + README Avance 3 + sección Defensa
 - [ ] Preparar diapositivas y ensayar demo
-- [ ] Tag `v3-final` (se crea con `git tag -a` una vez fusionado a `main`)
+- [x] Tag `v3-final` (tag anotado real: `git tag -a v3-final 4d0564f`)
 
 ---
 
