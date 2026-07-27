@@ -611,6 +611,33 @@ Invoke-RestMethod -Method Get -Uri 'http://localhost:3000/api/libros' -Headers @
 
 Evidencias de autenticación JWT y rutas protegidas disponibles en la sección de Postman más abajo.
 
+### ⏳ Expiración del JWT
+
+El tiempo de vida del token se controla con `JWT_EXPIRES_IN` (por defecto `1h`, configurable en `docker-compose.final.yml`) y se aplica en `auth.module.ts` al construir el `JwtModule`. La validación la hace `JwtStrategy` con `ignoreExpiration: false`, así que passport-jwt rechaza cualquier token vencido antes de llegar al controlador; `JwtAuthGuard.handleRequest` convierte ese rechazo en `401 Unauthorized`, igual que un token ausente o con firma inválida.
+
+Para verlo sin esperar 1h completo, `jwt-expiracion-check.js` (en la raíz del repo) firma un token con el mismo `JwtService` y un `expiresIn` corto, y lo valida antes y después de que expire:
+
+```bash
+cd apps/gateway
+node ../../jwt-expiracion-check.js
+```
+
+Salida real de esta corrida:
+
+```
+1) Login -> access_token emitido con expiresIn=2s:
+   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlcyI6WyJhZG1pbiJdLCJpYXQiOjE3ODUxMjQzMDMsImV4cCI6MTc4NTEyNDMwNX0.BLUsvANROM5_8N5LZJ-kc_Szse16_ObhCuEw_XwbAcI
+
+2) Validación inmediata (igual que JwtStrategy, ignoreExpiration:false):
+   OK -> {"sub":"admin","username":"admin","roles":["admin"],"iat":1785124303,"exp":1785124305}
+
+3) Misma validación pasados 3s (token ya expiró):
+   RECHAZADO -> TokenExpiredError - jwt expired
+   (JwtAuthGuard.handleRequest recibe err y responde 401 Unauthorized, igual que en el Gateway real)
+```
+
+Con el sistema levantado, el mismo efecto se reproduce pidiendo un token de vida corta (`JWT_EXPIRES_IN=5s` en el `.env`), esperando unos segundos y reintentando `GET /api/libros` con ese mismo token: el Gateway responde `401 Unauthorized` aunque el token sea sintácticamente válido, porque ya expiró.
+
 ### 🧪 Pruebas en Postman
 
 ![Endpoint de login](<docs/evidencias/avance3/0-endpoint con login.png>)
@@ -674,13 +701,36 @@ Se integró `@sentry/nestjs` en los 4 servicios (Gateway, Libros, Préstamos, No
 
 El DSN se pasa únicamente por la variable de entorno `SENTRY_DSN` (definida en `.env`, no versionado); el código no trae ningún DSN por defecto, así que sin esa variable Sentry simplemente no reporta en vez de apuntar a una cuenta ajena.
 
-Se validó con dos casos:
+Se validó con dos casos, ambos originados en el Gateway:
 - Un evento de prueba (`Sentry default test error`) disparado manualmente desde el contenedor del Gateway.
 - Un error real de negocio (petición sin token / token inválido), capturado por el filtro global y visible en el panel con su stack trace.
 
 ![Evento de prueba en Sentry](<docs/evidencias/avance3/6-sentry evento default.png>)
 
 ![Error real capturado en Sentry](<docs/evidencias/avance3/7- sentry error intencional.png>)
+
+#### Evidencia pendiente: un error originado en un microservicio (no solo el Gateway)
+
+El código ya está integrado en Libros, Préstamos y Notificaciones (no solo en el Gateway), pero las dos capturas de arriba muestran únicamente errores del Gateway. Para demostrar que la integración cubre varios servicios de verdad, falta una captura de Sentry con un error que se origine en uno de los microservicios. La cadena ya está verificada en el código:
+
+`libros.service.ts:50-61` (`obtenerLibroGrpc`) → si el libro no existe, lanza `RpcException({ statusCode: 404, ... })` → `AllExceptionsToRpcFilter` de **Libros** (`apps/libros/src/common/filters/rpc-exception.filter.ts`) captura la excepción con `Sentry.captureException(exception)` **antes** de traducirla de vuelta al Gateway por gRPC. Ese evento llega a Sentry con `release: libros@1.0.0`, distinguible del Gateway.
+
+Para reproducirlo y capturar la pantalla:
+
+```bash
+# 1) .env junto a docker-compose.final.yml con JWT_SECRET y el SENTRY_DSN real del equipo
+docker compose -f docker-compose.final.yml up -d --build
+
+# 2) login para obtener el token
+curl -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}'
+
+# 3) pedir un libro con un id que no existe -> dispara el 404 desde Libros, no desde el Gateway
+curl http://localhost:3000/api/libros/grpc/00000000-0000-0000-0000-000000000000 -H "Authorization: Bearer <token_del_paso_2>"
+
+# 4) abrir el panel de Sentry y capturar el evento con release libros@1.0.0
+```
+
+> Nota de esta sesión: se intentó levantar `docker-compose.final.yml` completo para validar este paso en vivo, pero el daemon de Docker Desktop se cayó a mitad del build (`error during connect: ...dockerDesktopLinuxEngine...`) y no se pudo confirmar de punta a punta. La cadena de código (paso anterior) sí quedó verificada leyendo el filtro y el servicio directamente. Falta que alguien del equipo corra los 4 comandos de arriba con Docker Desktop sano y su `SENTRY_DSN` real, y suba esa captura como `docs/evidencias/avance3/8-sentry-libros.png`.
 
 ### 🔗 Integración final
 El sistema queda integrado de punta a punta desde el Gateway: `HTTP → Gateway (JWT Guard) → Préstamos (TCP) → Libros (TCP)` para la ruta síncrona, `Préstamos → Redis → Notificaciones` para el evento asíncrono de préstamo, `Préstamos → RabbitMQ → Gateway` para la auditoría, y `Gateway → Libros` por gRPC para la consulta directa de un libro. Los cuatro transportes (TCP, Redis, RabbitMQ, gRPC) y la capa de seguridad JWT conviven en la misma ejecución levantada con `docker-compose.final.yml`.
