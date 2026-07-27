@@ -12,10 +12,12 @@ Se instaló `@sentry/nestjs` en todos los microservicios:
 ### 2. Configuración de Sentry
 Se crearon archivos `instrument.ts` en cada microservicio con la inicialización de Sentry.
 
-Archivo `.env` creado con:
+Archivo `.env` (no versionado, cada integrante crea el suyo) con:
 ```
-SENTRY_DSN=https://59c710be822aacc870e73ff0f02fa665@o4511580700213248.ingest.us.sentry.io/4511804367241216
+SENTRY_DSN=<DSN del proyecto de Sentry, sin comillas>
 ```
+
+> El DSN real nunca debe quedar commiteado ni como valor por defecto en el código: cualquiera con el DSN público puede enviar eventos falsos a esa cuenta. `instrument.ts` en cada servicio ahora usa `process.env.SENTRY_DSN` sin fallback — si falta la variable, Sentry simplemente no reporta en vez de apuntar a una cuenta ajena.
 
 ### 3. Importación en main.ts
 Cada archivo `main.ts` ahora importa `instrument.ts` al inicio:

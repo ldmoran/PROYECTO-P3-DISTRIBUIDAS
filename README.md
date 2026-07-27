@@ -7,8 +7,8 @@
 | Integrante | Rol | GitHub |
 |---|---|---|
 | David Moran | Backend / Arquitectura | @ldmoran |
-| Gabriel Vivanco | Transportes / gRPC | @usuario |
-| Alison Miranda | Seguridad / Observabilidad | @usuario |
+| Gabriel Vivanco | Transportes / gRPC | @GabrielNicoasVivancoRaza |
+| Alison Miranda | Seguridad / Observabilidad | @alisonmiranda |
 | Samir Mideros | Documentación / QA | @esmid17 |
 
 ## 🧩 Descripción del MVP
@@ -61,55 +61,22 @@ docker compose ps
 http://localhost:3000
 ```
 
-### Autenticación JWT
+### Qué archivo Compose usar según el avance
 
-El Gateway implementa autenticación con JWT para proteger los endpoints del API. El login se realiza en la ruta `/auth/login` y devuelve un token `access_token` que debe enviarse en el encabezado `Authorization: Bearer <token>` para acceder a rutas protegidas bajo `/api/*`.
+| Archivo | Incluye | Avance |
+|---|---|---|
+| `docker-compose.yml` | Gateway + Libros + Préstamos + Notificaciones, TCP + Redis | Avance 1 |
+| `docker-compose.transportes.yml` | Lo anterior + gRPC (Gateway↔Libros) + RabbitMQ (auditoría) | Avance 2 |
+| `docker-compose.final.yml` | Todo lo anterior + JWT/Guard en el Gateway + Sentry en los 4 servicios | Avance 3 (final) |
 
-Cambios incluidos en el avance 3:
-
-- Se agregó un módulo de autenticación en el Gateway.
-- Se implementó el endpoint `POST /auth/login` para emitir el token JWT.
-- Se creó un guard JWT para proteger las rutas del API bajo `/api/*`.
-- Se configuró la estrategia `JwtStrategy` para validar el token en cada petición.
-- Se documentó el flujo de prueba con credenciales de acceso para el usuario `admin`.
-- Se integró Sentry en el Gateway y en los microservicios para capturar errores no manejados.
-- Se añadió un filtro global de excepciones para enviar errores a Sentry desde el Gateway.
-- Se validó el envío con un evento de prueba `Sentry default test error` desde el contenedor.
-
-Credenciales de prueba:
-
-- Usuario: `admin`
-- Contraseña: `admin123`
-- Usuario: `guest`
-- Contraseña: `guest123`
-
-Ejemplo con PowerShell:
-
-```powershell
-$body = @{ username = 'admin'; password = 'admin123' } | ConvertTo-Json
-$token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/auth/login' -ContentType 'application/json' -Body $body).access_token
-Invoke-RestMethod -Method Get -Uri 'http://localhost:3000/api/libros' -Headers @{ Authorization = "Bearer $token" }
-```
-
-Ejemplo con curl:
+Para el sistema final:
 
 ```bash
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+# .env junto a docker-compose.final.yml, con al menos JWT_SECRET (SENTRY_DSN es opcional)
+docker compose -f docker-compose.final.yml up -d --build
 ```
 
-#### Evidencias del avance 3
-
-![Login JWT](docs/evidencias/avance3/0-endpoint%20con%20login.png)
-
-![Ruta protegida con token](docs/evidencias/avance3/1-prueba%20ruta%20protegida.png)
-
-### Observabilidad con Sentry
-
-Se agregó Sentry para capturar errores no manejados en el Gateway y los microservicios. El evento de prueba `Sentry default test error` se envió correctamente desde el contenedor del Gateway.
-
-![Sentry Evento](docs/evidencias/avance3/2-sentry-evento.png)
+El detalle de JWT/Guard y Sentry (credenciales, ejemplos, evidencias) está consolidado en la sección **Avance 3** más abajo.
 
 ### Evidencia de ejecución
 
@@ -646,6 +613,10 @@ Evidencias de autenticación JWT y rutas protegidas disponibles en la sección d
 
 ### 🧪 Pruebas en Postman
 
+![Endpoint de login](<docs/evidencias/avance3/0-endpoint con login.png>)
+
+![Prueba de ruta protegida](<docs/evidencias/avance3/1-prueba ruta protegida.png>)
+
 ![Login obtener JWT](docs/evidencias/avance3/2-Login%20obtener%20jwt.png)
 
 ![Ruta protegida con token en Postman](docs/evidencias/avance3/3-ruta%20rpotegida%20con%20token.png)
@@ -697,32 +668,98 @@ Respuesta esperada: `401 Unauthorized`.
 
 Resultado observado: el Gateway devolvió `401 Unauthorized` y se registró el error en Sentry como `Token inválido o ausente`.
 
-### Observabilidad con Sentry
+### 📊 Observabilidad con Sentry
 
-Se agregó Sentry para capturar errores no manejados en el Gateway y los microservicios. Para verificar la integración, se envió un evento de prueba desde el contenedor del Gateway con el mensaje:
+Se integró `@sentry/nestjs` en los 4 servicios (Gateway, Libros, Préstamos, Notificaciones). Cada uno carga `instrument.ts` antes de arrancar Nest y registra el filtro global de excepciones (`SentryGlobalFilter` en el Gateway, `@SentryExceptionCaptured()` en los filtros RPC de los microservicios), de forma que un error no manejado en cualquiera de los cuatro procesos queda registrado en el mismo proyecto de Sentry con su `release` (`gateway@1.0.0`, `libros@1.0.0`, etc.) para identificar de qué servicio vino.
 
-- `Sentry default test error`
+El DSN se pasa únicamente por la variable de entorno `SENTRY_DSN` (definida en `.env`, no versionado); el código no trae ningún DSN por defecto, así que sin esa variable Sentry simplemente no reporta en vez de apuntar a una cuenta ajena.
 
-Si deseas, puedes agregar aquí una captura de pantalla del evento recibido en Sentry:
+Se validó con dos casos:
+- Un evento de prueba (`Sentry default test error`) disparado manualmente desde el contenedor del Gateway.
+- Un error real de negocio (petición sin token / token inválido), capturado por el filtro global y visible en el panel con su stack trace.
 
-![Sentry Evento](docs/evidencias/avance3/2-sentry-evento.png)
+![Evento de prueba en Sentry](<docs/evidencias/avance3/6-sentry evento default.png>)
 
-
-### 📊 Observabilidad (Sentry)
-En este avance se dejó preparada la base para la observabilidad del sistema, centrada en capturar errores de las solicitudes HTTP y de los microservicios desde el Gateway. La idea es registrar excepciones de forma centralizada para facilitar la identificación de fallas en producción y durante la defensa del proyecto.
+![Error real capturado en Sentry](<docs/evidencias/avance3/7- sentry error intencional.png>)
 
 ### 🔗 Integración final
-El sistema quedó integrado de forma completa desde el Gateway hacia los microservicios: HTTP → Gateway → Préstamos → Libros (TCP), además del flujo asíncrono con RabbitMQ para auditoría y la autenticación JWT para proteger el acceso. Esta integración permite demostrar, en una misma ejecución, el comportamiento de seguridad, comunicación entre servicios y manejo de eventos.
+El sistema queda integrado de punta a punta desde el Gateway: `HTTP → Gateway (JWT Guard) → Préstamos (TCP) → Libros (TCP)` para la ruta síncrona, `Préstamos → Redis → Notificaciones` para el evento asíncrono de préstamo, `Préstamos → RabbitMQ → Gateway` para la auditoría, y `Gateway → Libros` por gRPC para la consulta directa de un libro. Los cuatro transportes (TCP, Redis, RabbitMQ, gRPC) y la capa de seguridad JWT conviven en la misma ejecución levantada con `docker-compose.final.yml`.
 
 ### 🏗️ Diagrama final
-El diagrama final del sistema muestra el Gateway como punto único de entrada, la autenticación JWT como capa de seguridad, los microservicios cooperando sobre TCP y RabbitMQ, y la observabilidad como componente transversal para monitorear errores.
+
+```mermaid
+flowchart LR
+  C[Cliente / Postman] -->|HTTP + JWT| G[Gateway]
+  G -->|JwtAuthGuard + RolesGuard| G
+  G -->|TCP| P[Préstamos]
+  P -->|TCP| L[Libros]
+  G -->|gRPC| L
+  P -->|Redis PUB/SUB| N[Notificaciones]
+  P -->|RabbitMQ queue| G
+  G -.errores.-> S[(Sentry)]
+  P -.errores.-> S
+  L -.errores.-> S
+  N -.errores.-> S
+```
 
 ---
 
 ## 🎤 Defensa
-Guion de defensa sugerido:
-1. Levantar la pila con Docker Compose.
-2. Ejecutar el login en `/auth/login` para obtener el JWT.
-3. Probar una ruta protegida con el token.
-4. Mostrar la integración entre Gateway, Préstamos y Libros.
-5. Explicar cómo la observabilidad permite detectar fallas de forma centralizada.
+
+### 1. Portada
+Sistema de Gestión de Biblioteca Universitaria — integrantes: David Moran (Backend/Arquitectura), Gabriel Vivanco (Transportes/gRPC), Alison Miranda (Seguridad/Observabilidad), Samir Mideros (Documentación/QA).
+
+### 2. Problema y dominio del MVP
+Administrar el catálogo de libros de una biblioteca y los préstamos que los usuarios realizan sobre ese catálogo, notificando cuando un préstamo se registra. El dominio se mantuvo simple a propósito para poder concentrar el esfuerzo en la arquitectura de comunicación entre microservicios.
+
+### 3. Arquitectura general
+Ver diagrama final arriba: Gateway como único punto de entrada HTTP, JWT/Guard como capa de seguridad, y los tres microservicios (Libros, Préstamos, Notificaciones) comunicados por TCP, gRPC, Redis y RabbitMQ.
+
+### 4. Avance 1 — Latencia y acoplamiento
+Comparación síncrono (TCP) vs. asíncrono (Redis) con 50 peticiones por camino: síncrono 9.10/32.56/48.77 ms (prom/p95/máx) vs. asíncrono 1.84/2.41/5.06 ms. La prueba de caída (deteniendo `biblioteca-libros`) evidenció el acoplamiento temporal: el camino síncrono falla de inmediato cuando Libros no está disponible, mientras que el evento en Redis no depende de que Notificaciones esté arriba.
+
+### 5. Avance 2 — Comunicación
+Se agregó gRPC (Gateway → Libros, contrato `proto/libros.proto`) y RabbitMQ como segundo transporte asíncrono (Préstamos → Gateway, auditoría). Tabla comparativa de los 4 transportes en la sección Avance 2 más arriba.
+
+### 6. Avance 3 — Seguridad y observabilidad
+JWT (`POST /auth/login`) + `JwtAuthGuard`/`RolesGuard` protegiendo `/api/*` con 401 sin token y 403 sin el rol requerido; Sentry capturando errores de los 4 servicios.
+
+### 7. Temas de clase aplicados
+Patrones: API Gateway, Publisher/Subscriber, Repository, Dependency Injection. Principios SOLID: SRP (cada microservicio con una responsabilidad), DIP (comunicación vía interfaces de transporte, no implementaciones concretas). Manejo de excepciones consistente con filtros globales (`HttpExceptionFilter`, `AllExceptionsToRpcFilter`, `SentryGlobalFilter`) en los 4 servicios.
+
+### 8. Demo en vivo (runbook)
+
+```bash
+# 1. Levantar
+docker compose -f docker-compose.final.yml up -d --build
+
+# 2. Ver servicios
+docker compose -f docker-compose.final.yml ps
+
+# 3. Login
+curl -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}'
+
+# 4. Ruta protegida SIN token -> 401
+curl -i http://localhost:3000/api/libros
+
+# 5. Ruta protegida CON token -> 200
+curl http://localhost:3000/api/libros -H "Authorization: Bearer <token_del_paso_3>"
+
+# 6. Operación integrada: crear un préstamo real
+#    (dispara TCP Gateway->Préstamos->Libros, evento Redis, y auditoría por RabbitMQ)
+curl -X POST http://localhost:3000/api/prestamos -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"libroId":"<id>","usuario":"jperez"}'
+
+# 7. Provocar un error (p.ej. libro inexistente o sin token) y mostrarlo en el panel de Sentry
+```
+
+### 9. Conclusiones y aprendizajes
+La comparación con números reales (no solo teoría) fue lo que mejor evidenció el costo del acoplamiento temporal: el camino síncrono acumula la latencia de cada salto y falla en cadena si un servicio cae, mientras que el asíncrono aísla esa falla a costa de perder la confirmación inmediata. Mantener trazabilidad real (tags anotados, PRs revisados, commits por persona) resultó tan importante como el código: la primera entrega perdió puntos por documentar procesos que no habían ocurrido.
+
+### 10. Cierre / Preguntas frecuentes preparadas
+- **¿Qué información viaja dentro de un JWT y cómo se valida?** El payload (`sub`, `username`, `roles`) firmado con `JWT_SECRET`; `JwtStrategy` lo valida en cada petición vía `passport-jwt` extrayendo el Bearer token del header `Authorization`.
+- **¿Qué hace un Guard en NestJS y en qué se diferencia de un middleware?** El Guard decide si la petición puede continuar hacia el handler (autenticación/autorización) y tiene acceso al `ExecutionContext` de Nest (incluye metadata de decoradores como `@Roles`); el middleware corre antes, a nivel de Express/HTTP crudo, sin ese contexto.
+- **¿Cuál es la diferencia entre autenticación y autorización?** Autenticación confirma quién es el usuario (login → JWT); autorización decide qué puede hacer ese usuario ya autenticado (`RolesGuard` + `@Roles('admin')`).
+- **¿Por qué gRPC para Gateway→Libros y no TCP/eventos?** Para tener un contrato tipado (`.proto`) en un punto donde interesa una consulta rápida y fuertemente tipada, sin la semántica de cola de RabbitMQ ni la simplicidad no tipada del transporte TCP de Nest.
+- **¿En qué se diferencian los transportes usados?** TCP: síncrono petición-respuesta sin contrato fuerte. Redis Pub/Sub: asíncrono, sin acuse de recibo, para eventos livianos. RabbitMQ: asíncrono con cola durable, apto para auditoría que no debe perderse. gRPC: síncrono con contrato `.proto` tipado.
+- **¿Para qué sirve Sentry y qué registran ahí?** Centralizar errores no manejados de los 4 servicios con su stack trace, `release` y ambiente, para diagnosticar fallas sin depender de revisar logs de cada contenedor por separado.
+- **¿Qué patrones de diseño usa NestJS y cuáles agregaron ustedes?** NestJS ya trae Dependency Injection y Módulos; el equipo aplicó además API Gateway, Publisher/Subscriber (Redis) y Repository (TypeORM) sobre esa base.
