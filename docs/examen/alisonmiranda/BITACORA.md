@@ -71,33 +71,33 @@ No creé un segundo cliente gRPC ni un módulo de configuración paralelo: reuti
 
 **Pregunta 1:**
 
-> *(respuesta)*
+> Un reintento sin backoff puede empeorar una caída porque, si el servicio ya está saturado o colapsado, los reintentos inmediatos generan más tráfico sobre la misma dependencia en vez de darle tiempo a recuperarse. En mi caso, al llamar a `obtenerLibro` por gRPC, un retry agresivo sin espera podía concentrar más solicitudes sobre Libros cuando ya estaba fallando, aumentando la congestión y alargando aún más el tiempo de recuperación. Por eso elegí un esquema con espera creciente de 100 ms y 300 ms, en vez de reintentar de forma inmediata.
 
 **Pregunta 2:**
 
-> *(respuesta)*
+> No se deben reintentar nunca las operaciones que tienen efectos laterales o que pueden crear duplicados, como crear un préstamo, cobrar, eliminar un recurso o enviar un pago, porque un reintento puede ejecutar la misma acción dos veces. En mi implementación, la llamada `obtenerLibro` es una operación de lectura y no modifica estado, así que sí es segura para reintento; por eso el cambio encaja bien en esta ruta.
 
 **Pregunta 3:**
 
-> *(respuesta)*
+> Elegí un timeout de 2000 ms, definido en el código como `GRPC_TIMEOUT_MS`, porque es un límite razonable para una llamada gRPC simple y evita que el Gateway se quede esperando indefinidamente. No lo calibré con una medición previa de la ruta gRPC específica en este examen, así que lo trataría como un valor inicial; para calibrarlo mejor, mediría el p95 y el p99 de la ruta con el servicio sano y lo ajustaría para que sea ligeramente mayor que el tiempo normal de respuesta, sin dejar al cliente esperando demasiado. 
 
 ---
 
 ## 5. Uso de Inteligencia Artificial — **obligatorio**
 
-**¿Usaste IA en este examen?**  ☐ Sí  ☐ No
+**¿Usaste IA en este examen?**  ☑ Sí  ☐ No
 
 > Usarla no penaliza. **No declararla anula este criterio completo (C5 = 0).**
 > Si marcaste "No", firma igualmente la declaración del final.
 
 | # | Qué le pedí | Qué me devolvió | Qué corregí, adapté o descarté — y por qué |
 |:--:|---|---|---|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
+| 1 | Que me ayudara a direccionar cómo implementar resiliencia en la llamada gRPC desde el Gateway hacia Libros. | Sugerencias sobre timeout, reintentos y cómo estructurar la lógica del `catch` para distinguir 404, 502 y 503. | Acepté la orientación general, pero adapté la solución a mi código real: mantuve el cambio dentro de `obtenerLibroGrpc` y usé el manejo de errores ya existente del Gateway, en vez de crear una capa nueva. |
+| 2 | Que me ayudara a revisar pequeños fixes de implementación en el servicio del Gateway. | Propuestas para ajustar el flujo del `retryWhen` y mejorar la clasificación de los errores. | Corregí detalles del diseño para que el comportamiento fuera coherente con el repositorio, por ejemplo conservando el 404 para `code === 5` y mapeando los fallos de timeout a 503. |
+| 3 | Que me ayudara a redactar la explicación técnica de la solución. | Un borrador claro de la idea central, pero con frases demasiado generales. | Lo adapté para que hablara de mi sistema concreto: el Gateway, el cliente gRPC hacia Libros y la ruta HTTP expuesta por el controller. |
 
 **¿En qué se equivocó respecto a mi repositorio?**
-*(Casi siempre se equivoca en algo: inventa rutas, propone una librería que el proyecto no usa, ignora el guard/filtro que ya existe, asume otra versión del framework. Describe al menos un caso concreto y cómo lo detectaste.)*
+Una vez me propuso una idea que no encajaba del todo con el proyecto porque asumía un patrón de manejo de errores distinto al que ya usa este Gateway. Detecté ese problema porque el repositorio ya tenía un `catch` específico para traducir errores gRPC a `NOT_FOUND` y `BAD_GATEWAY`, y yo necesitaba extender esa lógica en el mismo sitio. Corrigí esa parte y mantuve el cambio alineado con la arquitectura existente del proyecto.
 
 
 
@@ -107,14 +107,20 @@ No creé un segundo cliente gRPC ni un módulo de configuración paralelo: reuti
 
 | Archivo | Qué demuestra |
 |---|---|
-| `antes-….png` | |
-| `despues-….png` | |
-| | |
+| `evidencias/1 login y guardar token en variable.png` | Muestra el proceso de login del Gateway y la captura del token JWT en una variable de shell para usarlo en la prueba del endpoint. |
+| `evidencias/2 llamada grpc.png` | Muestra la llamada al endpoint gRPC del Gateway con el token autorizado y la respuesta obtenida desde la ruta modificada. |
 
 **Cómo reproducir mi cambio desde cero:**
 
 ```bash
-# comandos exactos: levantar, autenticarse, ejecutar el caso
+# 1. Levantar los servicios
+Docker compose up -d
+
+# 2. Obtener el token JWT
+curl -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}'
+
+# 3. Usar el token para consultar la ruta del Gateway
+curl -X GET http://localhost:3000/api/libros/grpc/1 -H "Authorization: Bearer <TOKEN>"
 ```
 
 ---
@@ -138,13 +144,14 @@ No creé un segundo cliente gRPC ni un módulo de configuración paralelo: reuti
 ## 8. Estado final — honesto
 
 **Funciona:**
--
+- La lógica de resiliencia quedó implementada en el código del Gateway para la llamada gRPC a Libros, incluyendo timeout y reintentos con backoff.
+- El proyecto compila correctamente y la ruta del Gateway quedó preparada para probarse una vez que el servicio responda de forma estable.
 
 **No funciona / quedó incompleto:**
--
+- La verificación final completa de la ruta en ejecución quedó pendiente porque tuve problemas con el Gateway y con la disponibilidad del servicio de Libros durante la prueba, por lo que no pude cerrar del todo la evidencia en tiempo real.
 
 **Cuál era mi siguiente paso:**
-
+- Repetir la prueba end-to-end con el Gateway y Libros ya estables, confirmar el código HTTP de respuesta (404/503/502) en cada escenario y cerrar la evidencia con capturas y comandos reproducibles.
 
 > Declarar con precisión lo que no terminaste **conserva** los puntos de C2, C3, C4 y C5. Presentar como terminado algo que no funciona los pone en riesgo todos.
 
@@ -154,5 +161,5 @@ No creé un segundo cliente gRPC ni un módulo de configuración paralelo: reuti
 
 > Declaro que este trabajo es individual, que corresponde a la actividad que me fue asignada, y que la sección 5 refleja de forma completa y veraz el uso que hice de herramientas de Inteligencia Artificial durante el examen.
 
-**Nombre:**
-**Fecha:**
+**Nombre:*Alison MIranda*
+**Fecha:*27/07/2026*
