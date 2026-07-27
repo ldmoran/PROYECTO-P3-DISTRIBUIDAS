@@ -560,6 +560,8 @@ Prueba con un `id` inválido; el Gateway devuelve un error controlado indicando 
 
 ![gRPC not found](docs/evidencias/avance2/3.PNG)
 
+> **Nota de Avance 3:** esta captura muestra `502 Bad Gateway` en vez de `404`. El error sí estaba controlado (no tumbaba el servicio), pero el código HTTP era el incorrecto: `libros.service.ts` lanzaba `RpcException({ statusCode: 404, ... })`, y gRPC traduce el error por el campo `code` numérico del estándar (no por un `statusCode` estilo HTTP), así que cualquier `RpcException` sin un `code` grpc válido caía a `UNKNOWN` y el Gateway lo mapeaba a 502. Se corrigió en Avance 3 usando `code: GrpcStatus.NOT_FOUND`; ver el detalle en la sección de Observabilidad con Sentry más abajo. Se deja esta captura sin reemplazar para no reescribir la evidencia ya etiquetada en `v2-avance2`.
+
 #### Crear préstamo (Postman)
 `POST /api/prestamos` crea el préstamo y dispara la publicación a RabbitMQ (respuesta `201 Created`).
 
@@ -711,11 +713,20 @@ Se validó con dos casos, ambos originados en el Gateway:
 
 #### Evidencia pendiente: un error originado en un microservicio (no solo el Gateway)
 
-El código ya está integrado en Libros, Préstamos y Notificaciones (no solo en el Gateway), pero las dos capturas de arriba muestran únicamente errores del Gateway. Para demostrar que la integración cubre varios servicios de verdad, falta una captura de Sentry con un error que se origine en uno de los microservicios. La cadena ya está verificada en el código:
+El código ya está integrado en Libros, Préstamos y Notificaciones (no solo en el Gateway), pero las dos capturas de arriba muestran únicamente errores del Gateway. Para demostrar que la integración cubre varios servicios de verdad, falta una captura de Sentry con un error que se origine en uno de los microservicios.
 
-`libros.service.ts:50-61` (`obtenerLibroGrpc`) → si el libro no existe, lanza `RpcException({ statusCode: 404, ... })` → `AllExceptionsToRpcFilter` de **Libros** (`apps/libros/src/common/filters/rpc-exception.filter.ts`) captura la excepción con `Sentry.captureException(exception)` **antes** de traducirla de vuelta al Gateway por gRPC. Ese evento llega a Sentry con `release: libros@1.0.0`, distinguible del Gateway.
+**Esto ya se probó en vivo levantando `docker-compose.final.yml` completo**, y en el camino se encontró y corrigió un bug real: pedir un libro inexistente por gRPC (`GET /api/libros/grpc/:id`) devolvía `502 Bad Gateway` en lugar de `404` — visible incluso en la propia captura del equipo en `docs/evidencias/avance2/3.PNG`. La causa: `libros.service.ts` lanzaba `RpcException({ statusCode: 404, ... })`, pero para gRPC (a diferencia de TCP) Nest traduce el error por el campo `code` numérico del estándar gRPC, no por un `statusCode` estilo HTTP; sin un `code` reconocido, caía a `UNKNOWN` y el Gateway lo traducía a 502. Se corrigió usando `code: GrpcStatus.NOT_FOUND` (de `@grpc/grpc-js`) en `obtenerLibroGrpc`, y ahora responde `404` correctamente:
 
-Para reproducirlo y capturar la pantalla:
+```json
+// antes del fix
+{"statusCode":502,"message":"Libro 00000000-0000-0000-0000-000000000000 no encontrado"}
+// después del fix
+{"statusCode":404,"message":"Libro 00000000-0000-0000-0000-000000000000 no encontrado"}
+```
+
+Con esa corrección, se confirmó de punta a punta que la cadena para Sentry funciona: `libros.service.ts` (`obtenerLibroGrpc`) lanza el `RpcException` → `AllExceptionsToRpcFilter` de **Libros** (`apps/libros/src/common/filters/rpc-exception.filter.ts`) lo captura con `Sentry.captureException(exception)` **antes** de traducirlo de vuelta al Gateway por gRPC (verificado en los logs del contenedor: el microservicio sigue arriba y responde bien después del error, no se cae) → ese evento llega a Sentry con `release: libros@1.0.0`, distinguible del Gateway. También se repitió sin regresiones el resto de casos (401 sin token, 403 con rol `guest`, 200 con `admin`).
+
+Lo único que falta para tener la captura de pantalla es correrlo con el `SENTRY_DSN` real del equipo (en esta sesión se probó con la variable vacía, que hace que Sentry no reporte, a propósito, para no usar la cuenta del equipo desde aquí):
 
 ```bash
 # 1) .env junto a docker-compose.final.yml con JWT_SECRET y el SENTRY_DSN real del equipo
@@ -727,10 +738,9 @@ curl -X POST http://localhost:3000/auth/login -H "Content-Type: application/json
 # 3) pedir un libro con un id que no existe -> dispara el 404 desde Libros, no desde el Gateway
 curl http://localhost:3000/api/libros/grpc/00000000-0000-0000-0000-000000000000 -H "Authorization: Bearer <token_del_paso_2>"
 
-# 4) abrir el panel de Sentry y capturar el evento con release libros@1.0.0
+# 4) abrir el panel de Sentry y capturar el evento con release libros@1.0.0, guardarlo como
+#    docs/evidencias/avance3/8-sentry-libros.png
 ```
-
-> Nota de esta sesión: se intentó levantar `docker-compose.final.yml` completo para validar este paso en vivo, pero el daemon de Docker Desktop se cayó a mitad del build (`error during connect: ...dockerDesktopLinuxEngine...`) y no se pudo confirmar de punta a punta. La cadena de código (paso anterior) sí quedó verificada leyendo el filtro y el servicio directamente. Falta que alguien del equipo corra los 4 comandos de arriba con Docker Desktop sano y su `SENTRY_DSN` real, y suba esa captura como `docs/evidencias/avance3/8-sentry-libros.png`.
 
 ### 🔗 Integración final
 El sistema queda integrado de punta a punta desde el Gateway: `HTTP → Gateway (JWT Guard) → Préstamos (TCP) → Libros (TCP)` para la ruta síncrona, `Préstamos → Redis → Notificaciones` para el evento asíncrono de préstamo, `Préstamos → RabbitMQ → Gateway` para la auditoría, y `Gateway → Libros` por gRPC para la consulta directa de un libro. Los cuatro transportes (TCP, Redis, RabbitMQ, gRPC) y la capa de seguridad JWT conviven en la misma ejecución levantada con `docker-compose.final.yml`.
