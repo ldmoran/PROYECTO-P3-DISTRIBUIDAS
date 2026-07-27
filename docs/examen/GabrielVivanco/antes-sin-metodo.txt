@@ -1,0 +1,53 @@
+Evidencia "antes" — Actividad B (Gabriel Vivanco)
+====================================================
+
+1) El contrato gRPC (proto/libros.proto) NO tenía el método VerificarDisponibilidad
+   antes de esta actividad. Estado del archivo en el commit de arranque del examen
+   (b425816, rama exam/GabrielNicoasVivancoRaza, previo a cualquier feat):
+
+   $ git show b425816:proto/libros.proto
+
+   syntax = "proto3";
+
+   package biblioteca;
+
+   service LibrosService {
+     rpc ObtenerLibro (LibroRequest) returns (LibroResponse);
+   }
+
+   message LibroRequest {
+     string id = 1;
+   }
+
+   message LibroResponse {
+     string id = 1;
+     string titulo = 2;
+     string autor = 3;
+     string isbn = 4;
+     bool disponible = 5;
+   }
+
+   -> Solo existía ObtenerLibro. No había ningún rpc para consultar
+      disponibilidad por gRPC, ni handler en apps/libros, ni consumo desde
+      apps/gateway (confirmado con grep: cero referencias a
+      "verificarDisponibilidad"/"VerificarDisponibilidad" en apps/gateway/src
+      antes de esta actividad).
+
+2) La prueba automatizada (apps/gateway/src/gateway/gateway.service.spec.ts)
+   falla contra el código de antes del commit feat(gateway) (2e503c7), porque
+   el método verificarDisponibilidadGrpc no existía en GatewayService:
+
+   $ git checkout HEAD~1 -- apps/gateway/src/gateway/gateway.service.ts
+   $ npx jest
+
+   FAIL src/gateway/gateway.service.spec.ts
+     ● Test suite failed to run
+
+       src/gateway/gateway.service.spec.ts:38:21 - error TS2339:
+       Property 'verificarDisponibilidadGrpc' does not exist on type 'GatewayService'.
+
+   Test Suites: 1 failed, 1 total
+   Tests:       0 total
+
+   (Archivo restaurado después con `git checkout HEAD -- ...`; los 3 tests
+   vuelven a pasar con el código actual — ver despues-jest-ok.txt)

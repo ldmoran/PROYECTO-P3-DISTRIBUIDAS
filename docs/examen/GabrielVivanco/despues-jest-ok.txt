@@ -1,0 +1,11 @@
+PASS src/gateway/gateway.service.spec.ts (5.304 s)
+  GatewayService.verificarDisponibilidadGrpc
+    √ traduce NOT_FOUND (gRPC code 5) a HttpException 404 (4 ms)
+    √ traduce INVALID_ARGUMENT (gRPC code 3) a HttpException 400 (1 ms)
+    √ resuelve la disponibilidad cuando el libro existe (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        5.707 s
+Ran all test suites.
