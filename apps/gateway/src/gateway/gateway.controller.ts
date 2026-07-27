@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -31,12 +31,12 @@ export class GatewayController {
   }
 
   @Get('libros/:id')
-  obtenerLibro(@Param('id') id: string) {
+  obtenerLibro(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.gatewayService.obtenerLibro(id);
   }
 
   @Get('libros/grpc/:id')
-  obtenerLibroGrpc(@Param('id') id: string) {
+  obtenerLibroGrpc(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.gatewayService.obtenerLibroGrpc(id);
   }
 

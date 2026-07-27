@@ -17,11 +17,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     Sentry.captureException(exception);
 
     if (exception instanceof HttpException) {
-      const status = exception.getStatus();
+      const rawStatus = exception.getStatus();
+      const status =
+        typeof rawStatus === 'number' && Number.isInteger(rawStatus)
+          ? rawStatus
+          : typeof rawStatus === 'string' && /^\d+$/.test(rawStatus)
+          ? Number.parseInt(rawStatus, 10)
+          : HttpStatus.INTERNAL_SERVER_ERROR;
       const body = exception.getResponse();
-      return response.status(status).json(
-        typeof body === 'string' ? { statusCode: status, message: body } : body,
-      );
+      const responseBody = typeof body === 'string'
+        ? { statusCode: status, message: body }
+        : { ...body, statusCode: status };
+      return response.status(status).json(responseBody);
     }
 
     return response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
