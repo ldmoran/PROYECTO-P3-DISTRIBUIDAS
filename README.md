@@ -72,6 +72,9 @@ Cambios incluidos en el avance 3:
 - Se creó un guard JWT para proteger las rutas del API bajo `/api/*`.
 - Se configuró la estrategia `JwtStrategy` para validar el token en cada petición.
 - Se documentó el flujo de prueba con credenciales de acceso para el usuario `admin`.
+- Se integró Sentry en el Gateway y en los microservicios para capturar errores no manejados.
+- Se añadió un filtro global de excepciones para enviar errores a Sentry desde el Gateway.
+- Se validó el envío con un evento de prueba `Sentry default test error` desde el contenedor.
 
 Credenciales de prueba:
 
@@ -101,6 +104,12 @@ curl -X POST http://localhost:3000/auth/login \
 ![Login JWT](docs/evidencias/avance3/0-endpoint%20con%20login.png)
 
 ![Ruta protegida con token](docs/evidencias/avance3/1-prueba%20ruta%20protegida.png)
+
+### Observabilidad con Sentry
+
+Se agregó Sentry para capturar errores no manejados en el Gateway y los microservicios. El evento de prueba `Sentry default test error` se envió correctamente desde el contenedor del Gateway.
+
+![Sentry Evento](docs/evidencias/avance3/2-sentry-evento.png)
 
 ### Evidencia de ejecución
 
@@ -680,6 +689,24 @@ Respuesta esperada: `200 OK` con la lista de libros si el token es válido.
 - Headers: sin `Authorization`
 
 Respuesta esperada: `401 Unauthorized`.
+
+#### 4) Prueba de error sin token en otro endpoint
+- Método: `POST`
+- URL: `http://localhost:3000/api/prestamos/test-async`
+- Headers: sin `Authorization`
+
+Resultado observado: el Gateway devolvió `401 Unauthorized` y se registró el error en Sentry como `Token inválido o ausente`.
+
+### Observabilidad con Sentry
+
+Se agregó Sentry para capturar errores no manejados en el Gateway y los microservicios. Para verificar la integración, se envió un evento de prueba desde el contenedor del Gateway con el mensaje:
+
+- `Sentry default test error`
+
+Si deseas, puedes agregar aquí una captura de pantalla del evento recibido en Sentry:
+
+![Sentry Evento](docs/evidencias/avance3/2-sentry-evento.png)
+
 
 ### 📊 Observabilidad (Sentry)
 En este avance se dejó preparada la base para la observabilidad del sistema, centrada en capturar errores de las solicitudes HTTP y de los microservicios desde el Gateway. La idea es registrar excepciones de forma centralizada para facilitar la identificación de fallas en producción y durante la defensa del proyecto.

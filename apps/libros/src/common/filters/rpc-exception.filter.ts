@@ -1,4 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { RpcException } from '@nestjs/microservices';
 import { Observable, throwError } from 'rxjs';
 
@@ -10,6 +11,9 @@ import { Observable, throwError } from 'rxjs';
 @Catch()
 export class AllExceptionsToRpcFilter implements ExceptionFilter {
   catch(exception: unknown, _host: ArgumentsHost): Observable<any> {
+    // Capturar el error en Sentry
+    Sentry.captureException(exception);
+
     if (exception instanceof RpcException) {
       return throwError(() => exception.getError());
     }

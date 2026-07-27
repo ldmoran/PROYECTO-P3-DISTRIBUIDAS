@@ -1,3 +1,6 @@
+// IMPORTANT: Make sure to import `instrument.ts` at the top of your file.
+import './instrument';
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';

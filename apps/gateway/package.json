@@ -18,6 +18,8 @@
     "@nestjs/microservices": "^10.3.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.3.0",
+    "@sentry/nestjs": "^10.68.0",
+    "@sentry/node": "^10.68.0",
     "amqp-connection-manager": "^4.0.0",
     "amqplib": "^0.10.5",
     "class-transformer": "^0.5.1",

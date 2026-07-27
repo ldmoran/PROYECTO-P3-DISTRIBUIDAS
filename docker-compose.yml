@@ -48,6 +48,10 @@ services:
       DB_PASS: biblioteca
       DB_NAME: biblioteca_libros
       GRPC_PORT: 5000
+      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_ENVIRONMENT: development
+      SENTRY_TRACES_SAMPLE_RATE: "1.0"
+      SENTRY_RELEASE: libros@1.0.0
     ports:
       - "5000:5000"
     depends_on:
@@ -74,6 +78,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_ENVIRONMENT: development
+      SENTRY_TRACES_SAMPLE_RATE: "1.0"
+      SENTRY_RELEASE: prestamos@1.0.0
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,6 +108,10 @@ services:
       DB_NAME: biblioteca_notificaciones
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_ENVIRONMENT: development
+      SENTRY_TRACES_SAMPLE_RATE: "1.0"
+      SENTRY_RELEASE: notificaciones@1.0.0
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,6 +135,10 @@ services:
       LIBROS_GRPC_HOST: libros
       LIBROS_GRPC_PORT: 5000
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      SENTRY_DSN: ${SENTRY_DSN}
+      SENTRY_ENVIRONMENT: development
+      SENTRY_TRACES_SAMPLE_RATE: "1.0"
+      SENTRY_RELEASE: gateway@1.0.0
     ports:
       - "3000:3000"
     depends_on:

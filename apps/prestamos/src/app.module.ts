@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { PrestamosModule } from './prestamos/prestamos.module';
 import { Prestamo } from './prestamos/entities/prestamo.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    SentryModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -22,6 +25,12 @@ import { Prestamo } from './prestamos/entities/prestamo.entity';
       }),
     }),
     PrestamosModule,
+  ],
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
+    },
   ],
 })
 export class AppModule {}
