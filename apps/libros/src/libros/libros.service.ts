@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { status as GrpcStatus } from '@grpc/grpc-js';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Libro } from './entities/libro.entity';
@@ -51,11 +52,16 @@ export class LibrosService {
     try {
       return await this.findOne(id);
     } catch (error) {
+      // gRPC (a diferencia de TCP) traduce el error al cliente por su codigo
+      // numerico `code`, no por un `statusCode` estilo HTTP: sin esto, Nest
+      // no encuentra un `code` grpc valido y cae a UNKNOWN, y el Gateway lo
+      // traduce a 502 Bad Gateway en vez de 404 (bug real, visto en
+      // docs/evidencias/avance2/3.PNG).
       if (error instanceof NotFoundException) {
-        throw new RpcException({ statusCode: 404, message: error.message });
+        throw new RpcException({ code: GrpcStatus.NOT_FOUND, message: error.message });
       }
       throw new RpcException({
-        statusCode: 500,
+        code: GrpcStatus.INTERNAL,
         message: (error as Error)?.message ?? 'Error obteniendo libro por gRPC',
       });
     }
