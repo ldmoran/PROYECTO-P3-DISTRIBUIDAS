@@ -64,7 +64,8 @@ export class GatewayService implements OnModuleInit {
         retryWhen((errors) =>
           errors.pipe(
             mergeMap((error, attempt) => {
-              if (error?.code === 5) {
+              const grpcError = error as { code?: number; details?: string; message?: string };
+              if (grpcError?.code === 5) {
                 return throwError(() => error);
               }
 
@@ -81,24 +82,22 @@ export class GatewayService implements OnModuleInit {
 
       return await firstValueFrom(grpcCall$);
     } catch (error) {
-      if (error?.code === 5) {
-        const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
+      const grpcError = error as { code?: number; details?: string; message?: string };
+      if (grpcError?.code === 5) {
+        const message = grpcError?.details ?? grpcError?.message ?? 'Error de comunicación con el microservicio gRPC';
         throw new HttpException(message, HttpStatus.NOT_FOUND);
       }
 
-      const isTimeoutError =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.message?.includes('timeout') || error.message?.includes('Timeout'));
-      const isConnectionError =
-        error instanceof Error &&
-        /connect|disconnect|econnrefused|socket hang up|ECONN|ENOTFOUND|unavailable/i.test(error.message ?? '');
+      const errorMessage = [grpcError?.message, grpcError?.details].filter(Boolean).join(' ');
+      const isTimeoutError = /timeout|timed out/i.test(errorMessage);
+      const isConnectionError = /connect|disconnect|econnrefused|socket hang up|ehostunreach|enotfound|unavailable/i.test(errorMessage);
 
       if (isTimeoutError || isConnectionError) {
         throw new HttpException('Servicio de libros no disponible tras reintentos', HttpStatus.SERVICE_UNAVAILABLE);
       }
 
       const status = HttpStatus.BAD_GATEWAY;
-      const message = error?.details ?? error?.message ?? 'Error de comunicación con el microservicio gRPC';
+      const message = grpcError?.details ?? grpcError?.message ?? 'Error de comunicación con el microservicio gRPC';
       throw new HttpException(message, status);
     }
   }
